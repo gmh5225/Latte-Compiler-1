@@ -87,10 +87,12 @@ compileFuncDef (FnDef pos retType (Ident name) args block) = do
 compileArgs :: [Arg] -> Compl (ArgsCode, InitArgsCode)
 compileArgs [] = do return ("", "")
 compileArgs [Arg pos argType ident] = do
-  reg <- useNewReg
-  (initCode, _) <- initVar (getCType argType) [NoInit pos ident]
-  var <- lastVar
-  return (show (getCType argType) ++ " " ++ show reg, initCode ++ show (SetV var (getCType argType) reg))
+  reg <- addVar (getCType argType) ident
+  -- setVarReg ident reg
+  -- (initCode, _) <- initVar (getCType argType) [NoInit pos ident]
+  -- var <- lastVar
+  -- return (show (getCType argType) ++ " " ++ show reg, initCode ++ show (SetV var (getCType argType) reg))
+  return (show (getCType argType) ++ " " ++ show reg,"")
 compileArgs (arg : args) = do
   (argCode, initArgCode) <- compileArgs [arg]
   (argsCode, initArgsCode) <- compileArgs args
@@ -116,23 +118,14 @@ compileStmt (BStmt _ (Block _ stmts)) = do
   return ("\n " ++ blockCode ++ "\n", strDeclarations)
 compileStmt (Decl pos varType items) = initVar (getCType varType) items
 compileStmt (Ass pos ident expr) = do
-  -- return ("sgowno","_")
-  (exprResult, exprCode, _, strDeclarations) <- compileExpr expr
-  
+  (exprResult, exprCode, _, strDeclarations) <- compileExpr expr  
   case exprResult of
     Left exprVal -> do
-      -- return ("mamVal","_")
-
       setVarVal ident exprVal
       return (exprCode,strDeclarations)
     Right exprReg -> do
-      -- return ("mamVReg","_")
       setVarReg ident exprReg
-      -- (varType, reg) <- getVar ident
       return (exprCode,strDeclarations)
-      -- return (exprCode ++ show (SetRegister var varType exprReg), strDeclarations)
-
-  -- return (exprCode ++ show (SetV var varType exprReg), strDeclarations)
 compileStmt (Incr pos ident) = compileStmt (Ass pos ident (EAdd pos (EVar pos ident) (Plus pos) (ELitInt pos 1)))
 compileStmt (Decr pos ident) = compileStmt (Ass pos ident (EAdd pos (EVar pos ident) (Minus pos) (ELitInt pos 1)))
 compileStmt (Ret pos expr) = do
@@ -186,15 +179,10 @@ initVar :: CType -> [Item] -> Compl (LLVMCode, StrDeclarations)
 initVar varType [] = do return ("", "")
 initVar varType ((NoInit pos ident) : items) = do
   newVarReg <- addVar varType ident
-  (varCode, strDeclarations) <- initVar varType items
-  -- let declCode = show (AddV newVar varType)\
-  -- let declCode =  show newVarReg ++ " = add " ++ show varType ++ " 0, 0\n"
-  let declCode = ""      -- "store", show t, show v ++ ",", show (Ptr t), show res]
- 
+  (varCode, strDeclarations) <- initVar varType items 
   case varType of
-    CStr -> return (varCode ++ declCode, strDeclarations)
-    -- _ -> return (varCode ++ declCode ++ show (InitI newVar varType), strDeclarations)
-    _ -> return (varCode ++ declCode , strDeclarations)
+    CStr -> return (varCode , strDeclarations)
+    _ -> return (varCode  , strDeclarations)
 
 initVar varType ((Init pos ident expr) : items) = do
   (exprResult, exprCode, _, strDeclarations1) <- compileExpr expr
@@ -203,24 +191,15 @@ initVar varType ((Init pos ident expr) : items) = do
       addVar varType ident
       setVarVal ident val
       (varsCode, strDeclarations2) <- initVar varType items
-      return (varsCode , strDeclarations1 ++ strDeclarations2)
-
+      return (exprCode ++ varsCode  , strDeclarations1 ++ strDeclarations2)
     Right reg -> do
-      
+      -- newReg <- addVar varType ident
       addVar varType ident
       setVarReg ident reg
-      -- old
-      
-      -- let initCode = exprCode ++ show newVarReg ++ " = " ++ show exprReg
-      -- show (SetV newVar varType exprReg)
+
       (varsCode, strDeclarations2) <- initVar varType items
-      return (varsCode , strDeclarations1 ++ strDeclarations2)
-      -- let declCode = "" 
-      -- show (AddV newVar varType)
-      -- case varType of
-        -- CStr -> return (varsCode, strDeclarations1 ++ strDeclarations2)
+      return (exprCode++varsCode , strDeclarations1 ++ strDeclarations2)
         -- _ -> return (varsCode ++ declCode ++ show (InitI newVar varType) ++ initCode, strDeclarations1 ++ strDeclarations2)
-        -- _ -> return (varsCode , strDeclarations1 ++ strDeclarations2)
 
 compileExpr :: Expr -> Compl ExprResult
 compileExpr (EAdd pos e1 (Plus posOp) e2) = compileBinExp e1 e2 AddOp
