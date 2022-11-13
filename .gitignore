@@ -1,0 +1,8 @@
+*.ll
+*.bc
+good/*.ll
+good/*.bc
+bad/*.ll
+bad/*.bc
+src/*.hi
+src/*.o
