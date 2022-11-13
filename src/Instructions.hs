@@ -9,11 +9,8 @@ import Data.Map as Map
 import Latte.Abs
 import Types
 
-type VarVal = Either Val Register
-
-
 data Instruction
-  = ArtI ArtOp VarVal VarVal Register
+  = ArtI ArtOp VarState VarState Register
   | CmpI RelOp CType Val Val Register
   | BrI Register Label Label
   | JmpI Label
@@ -29,14 +26,8 @@ data Instruction
   | VRetI
   deriving (Eq)
 
-getVarVal :: Either Val Register -> String
-getVarVal varVal = do
-  case varVal of
-    Left val -> show val
-    Right reg -> show reg
-
 instance Show Instruction where
-  show (ArtI op v1 v2 reg) = show reg ++ " = " ++ show op ++ " i32 " ++ getVarVal v1 ++ ", " ++ getVarVal v2 ++ "\n"
+  show (ArtI op v1 v2 reg) = show reg ++ " = " ++ show op ++ " i32 " ++ showVarVal v1 ++ ", " ++ showVarVal v2 ++ "\n"
   show (CmpI op ctype v1 v2 reg) = show reg ++ " = icmp " ++ relOpToLLVM op ++ " " ++ show ctype ++ " " ++ show v1 ++ ", " ++ show v2 ++ "\n"
   show (BrI reg label1 label2) = "br i1 " ++ show reg ++ ", label " ++ "%" ++ show label1 ++ ", label " ++ "%" ++ show label2 ++ "\n"
   show (JmpI label) = "br label %" ++ show label ++ "\n"

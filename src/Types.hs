@@ -60,3 +60,9 @@ data Val
 instance Show Val where
   show (IntVal i) = show i
   show (RegVal reg) = show reg
+
+type VarState = Either Val Register
+
+showVarVal :: VarState -> String
+showVarVal (Left val) = show val
+showVarVal (Right val) = show val

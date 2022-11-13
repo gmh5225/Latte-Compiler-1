@@ -17,7 +17,7 @@ type PEnv = Map Ident CType
 
 
 
-type Store = Map Loc (CType, Either Val Register)
+type Store = Map Loc (CType, VarState)
 
 type Env = (PEnv, VEnv, Store, Loc, Register, Label, Var)
 
@@ -42,12 +42,6 @@ initEnv =
     Var 0
   )
 
--- addVar :: CType -> Ident -> Compl Var
--- addVar varType ident = do
---   (penv, venv, store, loc, reg, label, var) <- get
---   put (penv, Map.insert ident loc venv, Map.insert loc (varType, reg) store, loc + 1, nextReg reg, label,  var)
---   return var
-
 addVar :: CType -> Ident -> Compl Register
 addVar varType ident = do
   (penv, venv, store, loc, reg, label, var) <- get
@@ -67,9 +61,6 @@ setVarReg ident newReg = do
     let (Just (varType, _)) = Map.lookup varLoc store
     put  (penv, venv, Map.insert varLoc (varType, Right newReg) store, loc, reg, label, var)
     return ()
-  -- (penv, venv, store, loc, reg, label, var) <- get
-  -- put (penv, Map.insert ident loc venv, Map.insert loc (varType, var) store, loc + 1, reg, label, nextVar var)
-  -- return var
 
 setVarVal :: Ident -> Val -> Compl ()
 setVarVal ident val = do
@@ -97,16 +88,12 @@ useLabel = do
   put (penv, venv, store, loc, reg, nextLabel label, var)
   return label
 
-getVar :: Ident -> Compl (CType, (Either Val Register))
+getVar :: Ident -> Compl (CType, VarState)
 getVar ident = do
   (penv, venv, store, loc, reg, label, var) <- get
   let (Just varLoc) = Map.lookup ident venv
   let (Just (ctype, varVal)) = Map.lookup varLoc store
   return (ctype, varVal)
-  -- (penv, venv, store, loc, reg, label, var) <- get
-  -- let (Just varLoc) = Map.lookup ident venv
-  -- let (Just (ctype, var)) = Map.lookup varLoc store
-  -- return (ctype, var)
 
 getProc :: Ident -> Compl (CType, [CType])
 getProc ident = do
