@@ -53,7 +53,7 @@ nextLabel :: Label -> Label
 nextLabel (Lab num) = Lab $ num + 1
 
 data Val
-  = IntVal Int
+  = IntVal Integer
   | RegVal Register
   deriving (Eq)
 

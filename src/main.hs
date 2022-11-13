@@ -33,7 +33,8 @@ main = do
 
       case pProgram tokens of
         Right program -> do
-          result <- run program
+          putStrLn $ show program
+          result <- runStaticAnallysis program
           case result of
             (Right text) -> do
               putStrLn "OK\n"

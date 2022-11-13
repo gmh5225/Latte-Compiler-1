@@ -56,8 +56,8 @@ initEnv =
       (Ident "readString", (CFun CStr [], False))
     ]
 
-run :: Program -> IO (Either Error String)
-run program = do
+runStaticAnallysis :: Program -> IO (Either Error String)
+runStaticAnallysis program = do
   co <- runStateT (runExceptT (checkProgram program)) initEnv
   case fst co of
     (Left error) -> return $ Left error

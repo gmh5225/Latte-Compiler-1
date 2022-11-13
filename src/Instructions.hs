@@ -9,8 +9,11 @@ import Data.Map as Map
 import Latte.Abs
 import Types
 
+type VarVal = Either Val Register
+
+
 data Instruction
-  = ArtI ArtOp Val Val Register
+  = ArtI ArtOp VarVal VarVal Register
   | CmpI RelOp CType Val Val Register
   | BrI Register Label Label
   | JmpI Label
@@ -18,15 +21,22 @@ data Instruction
   | WhileI Register String Label Label Label String
   | AddV Var CType
   | InitI Var CType
-  | GetV Var CType Register
+  | GetV Register CType Register
   | SetV Var CType Register
+  | SetRegister Register CType Register
   | BoolI Register BoolOp Val Val
   | RetI CType Register
   | VRetI
   deriving (Eq)
 
+getVarVal :: Either Val Register -> String
+getVarVal varVal = do
+  case varVal of
+    Left val -> show val
+    Right reg -> show reg
+
 instance Show Instruction where
-  show (ArtI op v1 v2 reg) = show reg ++ " = " ++ show op ++ " i32 " ++ show v1 ++ ", " ++ show v2 ++ "\n"
+  show (ArtI op v1 v2 reg) = show reg ++ " = " ++ show op ++ " i32 " ++ getVarVal v1 ++ ", " ++ getVarVal v2 ++ "\n"
   show (CmpI op ctype v1 v2 reg) = show reg ++ " = icmp " ++ relOpToLLVM op ++ " " ++ show ctype ++ " " ++ show v1 ++ ", " ++ show v2 ++ "\n"
   show (BrI reg label1 label2) = "br i1 " ++ show reg ++ ", label " ++ "%" ++ show label1 ++ ", label " ++ "%" ++ show label2 ++ "\n"
   show (JmpI label) = "br label %" ++ show label ++ "\n"
@@ -34,8 +44,9 @@ instance Show Instruction where
   show (WhileI exprReg exprCode lStart lTrue lEnd code) = show (JmpI lStart) ++ show lStart ++ ": \n" ++ exprCode ++ show (BrI exprReg lTrue lEnd) ++ show lTrue ++ ":\n" ++ code ++ show (JmpI lStart) ++ show lEnd ++ ": \n"
   show (AddV var ctype) = show var ++ " = alloca " ++ show ctype ++ "\n"
   show (InitI var ctype) = "store " ++ show ctype ++ " 0, " ++ show ctype ++ "* " ++ show var ++ "\n"
-  show (GetV var ctype reg) = show reg ++ " = load " ++ show ctype ++ ", " ++ show ctype ++ "* " ++ show var ++ "\n"
+  show (GetV reg ctype resultReg) = show resultReg ++ " = load " ++ show ctype ++ ", " ++ show ctype ++ "* " ++ show reg ++ "\n"
   show (SetV var ctype reg) = "store " ++ show ctype ++ " " ++ show reg ++ ", " ++ show ctype ++ "* " ++ show var ++ "\n"
+  show (SetRegister resultReg ctype exprReg) = show resultReg ++ " = " ++ show ctype ++ " " ++ show exprReg ++ "\n"
   show (BoolI reg op v1 v2) = show reg ++ " = " ++ show op ++ " i1 " ++ show v1 ++ ", " ++ show v2 ++ "\n"
   show (RetI ctype reg) = "ret " ++ show ctype ++ " " ++ show reg ++ "\n"
   show VRetI = "ret void\n"
