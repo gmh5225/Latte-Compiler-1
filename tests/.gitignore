@@ -4,4 +4,6 @@ good/*.ll
 good/*.bc
 bad/*.ll
 bad/*.bc
+extensions/*.ll
+extensions/*.bc
 
