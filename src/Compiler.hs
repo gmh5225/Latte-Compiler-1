@@ -19,7 +19,7 @@ type ArgsCode = String
 
 type InitArgsCode = String
 
-type ExprResult = (VarState, LLVMCode, CType, StrDeclarations)
+type ExpressionResult = (VarState, LLVMCode, CType, StrDeclarations)
 
 pref :: String -> String
 pref str
@@ -195,13 +195,13 @@ initVar varType ((Init pos ident expr) : items) = do
       (varsCode, strDeclarations2) <- initVar varType items
       return (exprCode++varsCode , strDeclarations1 ++ strDeclarations2)
 
-compileExpr :: Expr -> Compl ExprResult
+compileExpr :: Expr -> Compl ExpressionResult
 compileExpr (EAdd pos e1 (Plus posOp) e2) = compileBinExp e1 e2 AddOp
 compileExpr (EAdd pos e1 (Minus posOp) e2) = compileBinExp e1 e2 SubOp
 compileExpr (EMul pos e1 (Times posOp) e2) = compileBinExp e1 e2 MulOp
 compileExpr (EMul pos e1 (Div posOp) e2) = compileBinExp e1 e2 DivOp
 compileExpr (EMul pos e1 (Mod posOp) e2) = compileBinExp e1 e2 ModOp
-compileExpr (ERel pos e1 op e2) = compileCmpExpr e1 e2 op
+compileExpr (ERel pos e1 op e2) = complieCmpExpresion e1 e2 op
 compileExpr (ELitTrue pos) = do
   reg <- useNewReg
   return (Right reg, show reg ++ " = " ++ "or i1 1,1" ++ "\n", CBool, "")
@@ -286,7 +286,7 @@ compileArgsExpr (expr : exprs) = do
   return (show ctype ++ " " ++ showVarVal exprRes ++ "," ++ argStr, exprCode ++ argsCode, strDeclarations1 ++ strDeclarations2)
 
 
-compileBinExp :: Expr -> Expr -> ArtOp -> Compl ExprResult
+compileBinExp :: Expr -> Expr -> ArtOp -> Compl ExpressionResult
 compileBinExp e1 e2 op = do
   (exprRes1, exprCode1, e1Type, strDeclarations1) <- compileExpr e1
   (exprRes2, exprCode2, e2Type, strDeclarations2) <- compileExpr e2
@@ -298,9 +298,9 @@ compileBinExp e1 e2 op = do
       reg <- useNewReg
       return (Right reg, exprCode1 ++ exprCode2 ++ show  (ArtI op exprRes1 exprRes2 reg), e1Type, strDeclarations1 ++ strDeclarations2)
 
-compileCmpExpr :: Expr -> Expr -> RelOp -> Compl ExprResult
-compileCmpExpr e1 e2 op = do
-  (result1, code1, t1, strDeclarations1) <- compileExpr e1
-  (result2, code2, t2, strDeclarations2) <- compileExpr e2
-  reg <- useNewReg
-  return (Right reg, code1 ++ code2 , CBool, strDeclarations1 ++ strDeclarations2)
+complieCmpExpresion :: Expr -> Expr -> RelOp -> Compl ExpressionResult
+complieCmpExpresion e1 e2 operator = do
+  (result1, code1, type1, stringsDeclarations1) <- compileExpr e1
+  (result2, code2, type2, stringsDeclarations2) <- compileExpr e2
+  resultRegister <- useNewReg
+  return (Right resultRegister, code1 ++ code2 ++ show (CompareInstruction resultRegister operator type1 result1 result2), CBool, stringsDeclarations1 ++ stringsDeclarations2)
