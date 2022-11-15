@@ -15,8 +15,6 @@ type VEnv = Map Ident Loc
 
 type PEnv = Map Ident CType
 
-
-
 type Store = Map Loc (CType, VarState)
 
 type Env = (PEnv, VEnv, Store, Loc, Register, Label, Var)
@@ -46,12 +44,6 @@ addVar :: CType -> Ident -> Compl Register
 addVar varType ident = do
   (penv, venv, store, loc, reg, label, var) <- get
   put (penv, Map.insert ident loc venv, Map.insert loc (varType, Right reg) store, loc + 1, nextReg reg, label,  var)
-  return reg
-
-addLitVar :: CType -> Ident -> Compl Register
-addLitVar varType ident = do
-  (penv, venv, store, loc, reg, label, var) <- get
-  put (penv, Map.insert ident loc venv, Map.insert loc (varType, Left $ IntVal 0) store, loc + 1, reg, label,  var)
   return reg
 
 setVarReg :: Ident -> Register -> Compl ()
@@ -100,8 +92,3 @@ getProc ident = do
   (penv, venv, store, loc, reg, label, var) <- get
   let (Just (CFun retType argsTypes)) = Map.lookup ident penv
   return (retType, argsTypes)
-
-lastVar :: Compl Var
-lastVar = do
-  (penv, venv, store, loc, Reg reg, label, Var num) <- get
-  return (Var $ num -1)
