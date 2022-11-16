@@ -10,7 +10,7 @@ import Latte.Abs
 import Types
 
 data Instruction
-  = ArtI ArtOp VarState VarState Register
+  = ArtI Register ArtOp VarState VarState
   | CompareInstruction Register RelOp CType VarState VarState 
   | BrI Register Label Label
   | JmpI Label
@@ -27,7 +27,7 @@ data Instruction
   deriving (Eq)
 
 instance Show Instruction where
-  show (ArtI op v1 v2 reg) = show reg ++ " = " ++ show op ++ " i32 " ++ showVarVal v1 ++ ", " ++ showVarVal v2 ++ "\n"
+  show (ArtI register operator value1 value2) = show register ++ " = " ++ show operator ++ " i32 " ++ showVarVal value1 ++ ", " ++ showVarVal value2 ++ "\n"
   show (CompareInstruction resultRegister operator ctype value1 value2) = 
     show resultRegister ++ " = icmp " ++ relOpToLLVM operator ++ " " ++ show ctype ++ " " ++ showVarVal value1 ++ ", " ++ showVarVal value2 ++ "\n"
   show (BrI reg label1 label2) = "br i1 " ++ show reg ++ ", label " ++ "%" ++ show label1 ++ ", label " ++ "%" ++ show label2 ++ "\n"
