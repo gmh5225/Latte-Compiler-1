@@ -168,13 +168,9 @@ compileStmt (SExp pos expr) = do
 
 initVar :: CType -> [Item] -> Compl (LLVMCode, StrDeclarations)
 initVar varType [] = do return ("", "")
-initVar varType ((NoInit pos ident) : items) = do
-  newVarReg <- addVar varType ident
-  (varCode, strDeclarations) <- initVar varType items 
-  case varType of
-    CStr -> return (varCode , strDeclarations)
-    _ -> return (varCode  , strDeclarations)
-
+initVar CStr ((NoInit pos ident) : items) = initVar CStr ((Init pos ident (EString pos "")) : items)
+initVar CInt ((NoInit pos ident) : items) = initVar CInt ((Init pos ident (ELitInt pos 0)) : items)
+initVar CBool ((NoInit pos ident) : items) = initVar CBool ((Init pos ident (ELitFalse pos)) : items) 
 initVar varType ((Init pos ident expr) : items) = do
   (exprResult, exprCode, _, strDeclarations1) <- complieExpression expr
   addVar varType ident
