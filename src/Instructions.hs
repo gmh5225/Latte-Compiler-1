@@ -10,8 +10,8 @@ import Latte.Abs
 import Types
 
 data Instruction
-  = ArtI Register ArtOp VarState VarState
-  | CompareInstruction Register RelOp CType VarState VarState 
+  = ArtI Register ArtOp Val Val
+  | CompareInstruction Register RelOp CType Val Val 
   | BrI Register Label Label
   | JmpI Label
   | IfElseI Register Label Label Label String String
@@ -27,9 +27,9 @@ data Instruction
   deriving (Eq)
 
 instance Show Instruction where
-  show (ArtI register operator value1 value2) = show register ++ " = " ++ show operator ++ " i32 " ++ showVarVal value1 ++ ", " ++ showVarVal value2 ++ "\n"
+  show (ArtI register operator value1 value2) = show register ++ " = " ++ show operator ++ " i32 " ++ show value1 ++ ", " ++ show value2 ++ "\n"
   show (CompareInstruction resultRegister operator ctype value1 value2) = 
-    show resultRegister ++ " = icmp " ++ relOpToLLVM operator ++ " " ++ show ctype ++ " " ++ showVarVal value1 ++ ", " ++ showVarVal value2 ++ "\n"
+    show resultRegister ++ " = icmp " ++ relOpToLLVM operator ++ " " ++ show ctype ++ " " ++ show value1 ++ ", " ++ show value2 ++ "\n"
   show (BrI reg label1 label2) = "br i1 " ++ show reg ++ ", label " ++ "%" ++ show label1 ++ ", label " ++ "%" ++ show label2 ++ "\n"
   show (JmpI label) = "br label %" ++ show label ++ "\n"
   show (IfElseI exprReg lTrue lFalse lEnd trueCode falseCode) = show (BrI exprReg lTrue lFalse) ++ show lTrue ++ ": \n" ++ trueCode ++ show (JmpI lEnd) ++ show lFalse ++ ":\n" ++ falseCode ++ show (JmpI lEnd) ++ show lEnd ++ ":\n"

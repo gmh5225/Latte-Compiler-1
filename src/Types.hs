@@ -53,16 +53,10 @@ nextLabel :: Label -> Label
 nextLabel (Lab num) = Lab $ num + 1
 
 data Val
-  = IntVal Integer
-  | RegVal Register
+  = IntV Integer
+  | RegV Register
   deriving (Eq)
 
 instance Show Val where
-  show (IntVal i) = show i
-  show (RegVal reg) = show reg
-
-type VarState = Either Val Register
-
-showVarVal :: VarState -> String
-showVarVal (Left val) = show val
-showVarVal (Right val) = show val
+  show (IntV i) = show i
+  show (RegV reg) = show reg
