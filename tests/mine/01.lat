@@ -1,0 +1,25 @@
+###### Variables declarations ######
+
+int main(){
+    int x; 
+    int y = 100;
+    int z = -100;
+    
+    printInt(x);
+    printInt(y);
+    printInt(z);
+
+    string str = "Hello world";
+    string empty;
+
+    printString(str);
+    printString(empty);
+
+    boolean t = true;
+    boolean f = false;
+    boolean d;
+    
+    
+
+	return 0;
+}
