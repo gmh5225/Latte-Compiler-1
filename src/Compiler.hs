@@ -185,18 +185,11 @@ complieExpression (EMul pos e1 (Times posOp) e2) = compileBinaryExpression e1 e2
 complieExpression (EMul pos e1 (Div posOp) e2) = compileBinaryExpression e1 e2 DivOp
 complieExpression (EMul pos e1 (Mod posOp) e2) = compileBinaryExpression e1 e2 ModOp
 complieExpression (ERel pos e1 op e2) = complieCmpExpression e1 e2 op
-complieExpression (ELitTrue pos) = do
-  reg <- useNewReg
-  return (RegV reg, show reg ++ " = " ++ "or i1 1,1" ++ "\n", CBool, "")
-complieExpression (ELitFalse pos) = do
-  reg <- useNewReg
-  return (RegV reg, show reg ++ " = " ++ "or i1 0,0" ++ "\n", CBool, "")
-complieExpression (ELitInt pos num) = do
-  reg <- useNewReg
-  return (IntV num,"", CInt, "")
+complieExpression (ELitTrue pos) = return (BoolV True,"",CBool,"")
+complieExpression (ELitFalse pos) = return (BoolV False,"",CBool,"")
+complieExpression (ELitInt pos num) = return (IntV num,"", CInt, "")
 complieExpression (EVar pos ident) = do
   (varType, varVal) <- getVar ident
-  newReg <- useNewReg
   case varType of
     CVoid -> return (RegV $ Reg 0, "", CVoid, "")
     _ -> do return (varVal,"",varType,"")
