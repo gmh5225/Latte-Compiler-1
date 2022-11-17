@@ -1,0 +1,29 @@
+###### Nested if ######
+
+int main() {
+    int x = 10;
+    if(3 > 2){
+        // Yes
+        x++;
+        if(2 > 9){
+            // No
+            x = -256;
+        }else{
+            // Yes
+            x++;
+            if(8 == 3){
+                // No
+                x = -256;
+            }else{
+                // Yes
+                x++;
+            }
+        }
+    }else{
+        // No
+        x = -256;
+    }
+
+    printInt(x);
+    return 0;
+}

@@ -14,7 +14,7 @@ data Instruction
   | CompareInstruction Register RelOp CType Val Val 
   | BrI Val Label Label
   | JmpI Label
-  | IfElseI Val Label Label Label Label String String
+  | IfElseI Val Label Label Label Label String String Label Label
   | WhileI Val String Label Label Label String
   | AddV Var CType
   | InitI Var CType
@@ -32,7 +32,7 @@ instance Show Instruction where
     show resultRegister ++ " = icmp " ++ relOpToLLVM operator ++ " " ++ show ctype ++ " " ++ show value1 ++ ", " ++ show value2 ++ "\n"
   show (BrI reg label1 label2) = "br i1 " ++ show reg ++ ", label " ++ "%" ++ show label1 ++ ", label " ++ "%" ++ show label2 ++ "\n"
   show (JmpI label) = "br label %" ++ show label ++ "\n"
-  show (IfElseI exprReg lBase lTrue lFalse lEnd trueCode falseCode) = show (JmpI lBase) ++ show  lBase ++ ":\n" ++ show (BrI exprReg lTrue lFalse) ++ show lTrue ++ ": \n" ++ trueCode ++ show (JmpI lEnd) ++ show lFalse ++ ":\n" ++ falseCode ++ show (JmpI lEnd) ++ show lEnd ++ ":\n"
+  show (IfElseI exprReg lBase lTrue lFalse lEnd trueCode falseCode endTrue endFalse) = show (JmpI lBase) ++ show  lBase ++ ":\n" ++ show (BrI exprReg lTrue lFalse) ++ show lTrue ++ ": \n" ++ trueCode ++ show (JmpI endTrue) ++ show  endTrue ++ ":\n" ++ show (JmpI lEnd) ++ show lFalse ++ ":\n" ++ falseCode ++ show (JmpI endFalse) ++ show  endFalse ++ ":\n"   ++ show (JmpI lEnd) ++ show lEnd ++ ":\n"
   show (WhileI exprReg exprCode lStart lTrue lEnd code) = show (JmpI lStart) ++ show lStart ++ ": \n" ++ exprCode ++ show (BrI exprReg lTrue lEnd) ++ show lTrue ++ ":\n" ++ code ++ show (JmpI lStart) ++ show lEnd ++ ": \n"
   show (AddV var ctype) = show var ++ " = alloca " ++ show ctype ++ "\n"
   show (InitI var ctype) = "store " ++ show ctype ++ " 0, " ++ show ctype ++ "* " ++ show var ++ "\n"

@@ -130,9 +130,9 @@ compileStmt (Decr pos ident) = compileStmt (Ass pos ident (EAdd pos (EVar pos id
 compileStmt (Ret pos expr) = do
   (exprResult, exprCode, exprType, strDeclarations) <- complieExpression expr
   case exprResult of
-    (IntV exprVal) -> do return ("ret i32 "++ show exprVal ++ "\n" ,strDeclarations)
-    (RegV exprReg) -> do
-      return (exprCode ++ show (RetI exprType exprReg), strDeclarations)
+    (IntV exprVal) -> return ("ret i32 "++ show exprVal ++ "\n" ,strDeclarations)
+    (RegV exprReg) -> return (exprCode ++ show (RetI exprType exprReg), strDeclarations)
+    (BoolV boolVal) -> return ("ret i1 "++ show boolVal ++ "\n" ,strDeclarations)
 compileStmt (VRet _) = return (show VRetI, "")
 compileStmt (Cond _ (ELitTrue _) stmt) = compileStmt stmt
 compileStmt (Cond _ (ELitFalse _) stmt) = return ("", "")
@@ -169,16 +169,28 @@ compileStmt (CondElse _ expr stmt1 stmt2) = do
 
   -- loop po prevStore jezeli jalas lokacja z prevStore ma inne Val w true, false -> do phi (Na poczatek mozna dla kazdej)
 
+  -- baza:
+  -- skacza warunkowo true/false
+  -- true
+  -- koniec true
+  -- false
+  -- koniec false
+  -- koniec if
+    
   labBase <- useLabel
   labTrue <- useLabel
+  endTrue <- useLabel
+
   labFalse <- useLabel
+  endFalse <- useLabel
+
   labEnd <- useLabel
   
-  resultCode <- generatePhi prevStore trueStore falseStore labBase labTrue labFalse 
+  resultCode <- generatePhi prevStore trueStore falseStore labBase labTrue labFalse endTrue endFalse
   
-  return ( exprCode++ show (IfElseI exprResult labBase labTrue labFalse labEnd stmt1Res stmt2Res) ++  resultCode, strDeclarations1 ++ strDeclarations2 ++ strDeclarations3)
+  return ( exprCode++ show (IfElseI exprResult labBase labTrue labFalse labEnd stmt1Res stmt2Res endTrue endFalse) ++  resultCode, strDeclarations1 ++ strDeclarations2 ++ strDeclarations3)
 
-compileStmt (While pos expr stmt) = do return ("","")
+compileStmt (While pos expr stmt) = do return  ("","") -- TODO
   -- (exprResult, exprCode, exprType, strDeclarations1) <- complieExpression expr
   -- (stmtRes, strDeclarations2) <- compileStmt stmt
   -- labCheck <- useLabel

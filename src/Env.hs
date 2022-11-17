@@ -106,19 +106,19 @@ setLocVal loc val = do
   put  (penv, venv, Map.insert loc (varType, val) store, loc, reg, label, var)
   return ()
 
-
-generatePhi :: Store -> Store -> Store -> Label -> Label -> Label -> Compl String
-generatePhi pStore tStore fStore bLab tLab fLab = do
-  let f k v a = (a ++  [(k, v)]) 
+-- TODO: Cleanup
+generatePhi :: Store -> Store -> Store -> Label -> Label -> Label -> Label -> Label -> Compl String
+generatePhi pStore tStore fStore bLab tLab fLab endTrue endFalse = do
+  let f k v a = (a ++  [(k, v)])  
   let pArr = foldrWithKey f [] pStore -- [(Loc, (CType, Val))]
 
-  result <- mapPhi bLab tLab fLab pArr tStore fStore
+  result <- mapPhi bLab tLab fLab pArr tStore fStore endTrue endFalse
   return result
 
-mapPhi :: Label -> Label -> Label -> [(Loc, (CType, Val))] -> Store -> Store -> Compl String
-mapPhi bL tL fL [] tStore fStore  = return "" 
-mapPhi bL tL fL ((loc,(ctype,val)):pArr) tStore fStore  = do
-  result <- mapPhi bL tL fL pArr tStore fStore
+mapPhi :: Label -> Label -> Label -> [(Loc, (CType, Val))] -> Store -> Store -> Label -> Label -> Compl String
+mapPhi bL tL fL [] tStore fStore endTrue endFalse  = return "" 
+mapPhi bL tL fL ((loc,(ctype,val)):pArr) tStore fStore  endTrue endFalse = do
+  result <- mapPhi bL tL fL pArr tStore fStore endTrue endFalse
 
   reg <- useNewReg
 
@@ -127,6 +127,6 @@ mapPhi bL tL fL ((loc,(ctype,val)):pArr) tStore fStore  = do
   let (Just (_,valTrue)) = Map.lookup loc tStore
   let (Just (_,valFalse)) = Map.lookup loc fStore
 
-  let currResult =  show reg  ++ "= phi " ++ show ctype  ++ " ["++ show valTrue ++", %"++ show tL ++ "], " ++  "["++ show valFalse ++", %"++ show fL ++ "]\n"
+  let currResult =  show reg  ++ "= phi " ++ show ctype  ++ " ["++ show valTrue ++", %"++ show endTrue ++ "], " ++  "["++ show valFalse ++", %"++ show endFalse ++ "]\n"
 
   return $ result ++ currResult ++ "\n\n"
