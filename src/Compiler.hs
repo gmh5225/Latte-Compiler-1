@@ -76,12 +76,20 @@ getArgCType (Arg pos argType ident) = getCType argType
 
 compileFuncDef :: TopDef -> Compl LLVMCode
 compileFuncDef (FnDef pos retType (Ident name) args block) = do
+
+  -- Funkcja ma osobny store i zmienne - nie ma dostepu do tych z main
+  (prevEnv, prevVenv, prevStore, prevLoc, prevReg, prevLabel, prevVar) <- get
+
   (argsCode, initArgsCode) <- compileArgs args
   (blockCode, strDeclarations) <- compileBlock block
+
+  (newEnv, newVenv, newStore, newLoc, newReg, newLabel, newVar) <- get
+  put (prevEnv, prevVenv, prevStore, newLoc, newReg, newLabel, newVar)
+
   let blockCore = strDeclarations ++ "\ndefine " ++ typeToLLVM retType ++ " @" ++ name ++ "(" ++ argsCode ++ ") {\n" ++ initArgsCode ++"\n" ++ blockCode
   case retType of
     Void _ -> return $ blockCore ++ "ret void\n}\n"
-    Str _ -> return $ blockCore ++ "%_ = call i8* @malloc(i32 1)\n ret i8* %_\n\n}\n"
+    Str _ -> return $ blockCore ++ "%_ = call i8* @malloc(i32 1)\n ret i8* %_\n\n}\n" --TODO: Tu nie moze vyc zawsze tego samego %_
     _ -> return $ blockCore ++ "ret " ++ typeToLLVM retType ++ " 0\n}\n"
 
 compileArgs :: [Arg] -> Compl (ArgsCode, InitArgsCode)
