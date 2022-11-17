@@ -1,0 +1,14 @@
+###### Basic if else ######
+
+int main() {
+    int x = 4;
+
+    if(x > 0){
+        x = 10;
+    }else{
+        x = -10;
+    }
+    printInt(x);
+    
+    return 0;
+}

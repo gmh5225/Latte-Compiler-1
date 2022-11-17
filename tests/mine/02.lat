@@ -1,0 +1,29 @@
+###### Simple functions ######
+
+int add(int x,int y,int z){
+    return x+y+z;
+}
+
+string greet(string name){
+    string result = "Hello " + name + "!";
+    return result;
+}
+
+boolean not(boolean b){
+    return !b;
+}
+
+int main(){
+    int sum = add(2,3,1);
+    printInt(sum);
+
+    if(not(false)){
+        printString(greet("Adam"));
+    }
+
+    if(not(true)){
+        printString("Error");
+    }
+    
+	return 0;
+}

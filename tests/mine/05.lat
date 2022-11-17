@@ -1,0 +1,20 @@
+###### Boolean literals ######
+
+int main() {
+    boolean litFalse = false;
+    boolean litTrue = true;
+    boolean defFalse;
+
+    if(litFalse){
+        printString("Error");
+    }
+
+    if(litTrue){
+        printString("OK");
+    }
+
+    if(defFalse){
+        printString("Error");
+    }
+    return 0;
+}
