@@ -80,6 +80,12 @@ useLabel = do
   put (penv, venv, store, loc, reg, nextLabel label, var)
   return label
 
+setStore :: Store -> Compl ()
+setStore store = do
+  (penv, venv, _, loc, reg, label, var) <- get
+  put (penv, venv, store, loc, reg, nextLabel label, var)
+  return ()
+
 getVar :: Ident -> Compl (CType, Val)
 getVar ident = do
   (penv, venv, store, loc, reg, label, var) <- get
@@ -92,3 +98,35 @@ getProc ident = do
   (penv, venv, store, loc, reg, label, var) <- get
   let (Just (CFun retType argsTypes)) = Map.lookup ident penv
   return (retType, argsTypes)
+
+setLocVal :: Loc -> Val -> Compl ()
+setLocVal loc val = do
+  (penv, venv, store, _, reg, label, var) <- get
+  let (Just (varType, _)) = Map.lookup loc store
+  put  (penv, venv, Map.insert loc (varType, val) store, loc, reg, label, var)
+  return ()
+
+
+generatePhi :: Store -> Store -> Store -> Label -> Label -> Label -> Compl String
+generatePhi pStore tStore fStore bLab tLab fLab = do
+  let f k v a = (a ++  [(k, v)]) 
+  let pArr = foldrWithKey f [] pStore -- [(Loc, (CType, Val))]
+
+  result <- mapPhi bLab tLab fLab pArr tStore fStore
+  return result
+
+mapPhi :: Label -> Label -> Label -> [(Loc, (CType, Val))] -> Store -> Store -> Compl String
+mapPhi bL tL fL [] tStore fStore  = return "" 
+mapPhi bL tL fL ((loc,(ctype,val)):pArr) tStore fStore  = do
+  result <- mapPhi bL tL fL pArr tStore fStore
+
+  reg <- useNewReg
+
+  r <- setLocVal loc (RegV reg)
+
+  let (Just (_,valTrue)) = Map.lookup loc tStore
+  let (Just (_,valFalse)) = Map.lookup loc fStore
+
+  let currResult =  show reg  ++ "= phi " ++ show ctype  ++ " ["++ show valTrue ++", %"++ show tL ++ "], " ++  "["++ show valFalse ++", %"++ show fL ++ "]\n"
+
+  return $ result ++ currResult ++ "\n\n"

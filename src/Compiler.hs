@@ -128,40 +128,58 @@ compileStmt (Ret pos expr) = do
 compileStmt (VRet _) = return (show VRetI, "")
 compileStmt (Cond _ (ELitTrue _) stmt) = compileStmt stmt
 compileStmt (Cond _ (ELitFalse _) stmt) = return ("", "")
-compileStmt (Cond _ expr stmt) = do
-  (exprResult, exprCode, exprType, strDeclarations1) <- complieExpression expr
-  (stmtCode, strDeclarations2) <- compileStmt stmt
-  labTrue <- useLabel
-  labFalse <- useLabel
-  labEnd <- useLabel
-  case exprResult of
-    IntV exprVal -> do
-      return ("","")
-    RegV exprReg -> do
-      return (exprCode ++ show (IfElseI exprReg labTrue labFalse labEnd stmtCode ""), strDeclarations1 ++ strDeclarations2)
+compileStmt (Cond pos expr stmt) = compileStmt (CondElse pos expr stmt (Empty pos)) --TODO: Optymalizacja
 compileStmt (CondElse _ (ELitTrue _) stmt1 stmt2) = compileStmt stmt1
 compileStmt (CondElse _ (ELitFalse _) stmt1 stmt2) = compileStmt stmt2
 compileStmt (CondElse _ expr stmt1 stmt2) = do
+  
+  -- Wykonuje warunek
   (exprResult, exprCode, exprType, strDeclarations1) <- complieExpression expr
+
+  -- zapisuje store przef ifem
+  (prevEnv, prevVenv, prevStore, prevLoc, prevReg, prevLabel, prevVar) <- get
+
+  -- Wykonuje blok true
   (stmt1Res, strDeclarations2) <- compileStmt stmt1
+
+  -- zapisuje store po bloklu true
+  (trueEnv, trueVenv, trueStore, trueLoc, trueReg, trueLabel, trueVar) <- get
+
+  -- -- wrcam z stanem do pierwszego
+  setStore prevStore
+  -- put (prevEnv, prevVenv, prevStore, prevLoc, prevReg, prevLabel, prevVar)
+
+  -- Wykonuje blok flase
   (stmt2Res, strDeclarations3) <- compileStmt stmt2
+    
+  -- zapisuje store po bloklu false
+  (falseEnv, falseVenv, falseStore, falseLoc, falseReg, falseLabel, falseVar) <- get
+
+   -- wrcam z stanem do pierwszego
+  setStore prevStore
+  -- put (prevEnv, prevVenv, prevStore, prevLoc, prevReg, prevLabel, prevVar)
+
+  -- loop po prevStore jezeli jalas lokacja z prevStore ma inne Val w true, false -> do phi (Na poczatek mozna dla kazdej)
+
+  labBase <- useLabel
   labTrue <- useLabel
   labFalse <- useLabel
   labEnd <- useLabel
-  case exprResult of
-    IntV exprVal -> do return ("","")
-    RegV exprReg -> do
-      return (exprCode ++ show (IfElseI exprReg labTrue labFalse labEnd stmt1Res stmt2Res), strDeclarations1 ++ strDeclarations2 ++ strDeclarations3)
-compileStmt (While pos expr stmt) = do
-  (exprResult, exprCode, exprType, strDeclarations1) <- complieExpression expr
-  (stmtRes, strDeclarations2) <- compileStmt stmt
-  labCheck <- useLabel
-  labTrue <- useLabel
-  labEnd <- useLabel
-  case exprResult of
-    IntV exprVal -> do return ("","")
-    RegV exprReg -> do
-      return (show (WhileI exprReg exprCode labCheck labTrue labEnd stmtRes), strDeclarations1 ++ strDeclarations2)
+  
+  resultCode <- generatePhi prevStore trueStore falseStore labBase labTrue labFalse 
+  
+  return ( exprCode++ show (IfElseI exprResult labBase labTrue labFalse labEnd stmt1Res stmt2Res) ++  resultCode, strDeclarations1 ++ strDeclarations2 ++ strDeclarations3)
+
+compileStmt (While pos expr stmt) = do return ("","")
+  -- (exprResult, exprCode, exprType, strDeclarations1) <- complieExpression expr
+  -- (stmtRes, strDeclarations2) <- compileStmt stmt
+  -- labCheck <- useLabel
+  -- labTrue <- useLabel
+  -- labEnd <- useLabel
+  -- case exprResult of
+  --   IntV exprVal -> do return ("","")
+  --   RegV exprReg -> do
+  --     return (show (WhileI exprReg exprCode labCheck labTrue labEnd stmtRes), strDeclarations1 ++ strDeclarations2)
 compileStmt (SExp pos expr) = do
   (_, code, _, strDeclarations) <- complieExpression expr
   return (code, strDeclarations)
@@ -208,40 +226,40 @@ complieExpression (EString pos str) = do
   let strDeclarations = "@s" ++ show num ++ " = private constant [" ++ show len ++ " x i8] c\"" ++ prepString str ++ "\\00\"\n"
   return (RegV reg, asignCode, CStr, strDeclarations)
 complieExpression (Neg pos expr) = complieExpression (EAdd pos (ELitInt pos 0) (Minus pos) expr)
-complieExpression (EAnd pos e1 e2) = do
-  (result1, text1, ctype1, _) <- complieExpression e1
-  labE1True <- useLabel
-  labE1False <- useLabel
-  labEnd <- useLabel
-  (Reg num) <- useNewReg
-  let ident = Ident $ "and" ++ show num
-  (varText, sd) <- initVar CBool [Init pos ident (ELitTrue pos)]
-  (setTrueText, sd2) <- compileStmt (Ass pos ident e2)
-  (setE2Text, sd3) <- compileStmt (Ass pos ident (ELitFalse pos))
-  case result1 of
-    IntV val1 -> do  return (IntV val1, "", CBool, sd ++ sd2 ++ sd3)
-    RegV reg1 -> do
-      let ifInstr = IfElseI reg1 labE1True labE1False labEnd setTrueText setE2Text
-      (ctype, var) <- getVar ident
-      res <- useNewReg
-      return (RegV res, varText ++ text1 ++ show ifInstr ++ "", CBool, sd ++ sd2 ++ sd3)
-complieExpression (EOr pos e1 e2) = do
-  (result1, text1, ctype1, _) <- complieExpression e1
-  labE1True <- useLabel
-  labE1False <- useLabel
-  labEnd <- useLabel
-  (Reg num) <- useNewReg
-  let ident = Ident $ "or" ++ show num
-  (varText, sd1) <- initVar CBool [Init pos ident (ELitFalse pos)]
-  (setTrueText, sd2) <- compileStmt (Ass pos ident (ELitTrue pos))
-  (setE2Text, sd3) <- compileStmt (Ass pos ident e2)
-  case result1 of
-    IntV val1 -> do  return (IntV val1, "", CBool, sd1 ++ sd2 ++ sd3)
-    RegV reg1 -> do
-      let ifInstr = IfElseI reg1 labE1True labE1False labEnd setTrueText setE2Text
-      (ctype, var) <- getVar ident
-      res <- useNewReg
-      return (RegV res, varText ++ text1 ++ show ifInstr ++ "", CBool, sd1 ++ sd2 ++ sd3)
+complieExpression (EAnd pos e1 e2) = do return (IntV 0,"",CBool,"")
+  -- (result1, text1, ctype1, _) <- complieExpression e1
+  -- labE1True <- useLabel
+  -- labE1False <- useLabel
+  -- labEnd <- useLabel
+  -- (Reg num) <- useNewReg
+  -- let ident = Ident $ "and" ++ show num
+  -- (varText, sd) <- initVar CBool [Init pos ident (ELitTrue pos)]
+  -- (setTrueText, sd2) <- compileStmt (Ass pos ident e2)
+  -- (setE2Text, sd3) <- compileStmt (Ass pos ident (ELitFalse pos))
+  -- case result1 of
+  --   IntV val1 -> do  return (IntV val1, "", CBool, sd ++ sd2 ++ sd3)
+  --   RegV reg1 -> do
+  --     let ifInstr = IfElseI reg1 labE1True labE1False labEnd setTrueText setE2Text
+  --     (ctype, var) <- getVar ident
+  --     res <- useNewReg
+  --     return (RegV res, varText ++ text1 ++ show ifInstr ++ "", CBool, sd ++ sd2 ++ sd3)
+complieExpression (EOr pos e1 e2) =  do return (IntV 0,"",CBool,"")
+  -- (result1, text1, ctype1, _) <- complieExpression e1
+  -- labE1True <- useLabel
+  -- labE1False <- useLabel
+  -- labEnd <- useLabel
+  -- (Reg num) <- useNewReg
+  -- let ident = Ident $ "or" ++ show num
+  -- (varText, sd1) <- initVar CBool [Init pos ident (ELitFalse pos)]
+  -- (setTrueText, sd2) <- compileStmt (Ass pos ident (ELitTrue pos))
+  -- (setE2Text, sd3) <- compileStmt (Ass pos ident e2)
+  -- case result1 of
+  --   IntV val1 -> do  return (IntV val1, "", CBool, sd1 ++ sd2 ++ sd3)
+  --   RegV reg1 -> do
+  --     let ifInstr = IfElseI reg1 labE1True labE1False labEnd setTrueText setE2Text
+  --     (ctype, var) <- getVar ident
+  --     res <- useNewReg
+  --     return (RegV res, varText ++ text1 ++ show ifInstr ++ "", CBool, sd1 ++ sd2 ++ sd3)
 
 complieExpression (Not pos expr) = do
   (exprResult, code, ctype, strDeclarations) <- complieExpression expr
