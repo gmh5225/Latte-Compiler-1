@@ -40,6 +40,7 @@ funcDeclarations =
     ++ "declare i32 @strlen(i8*)\n"
     ++ "declare i8* @strcpy(i8*,i8*)\n"
     ++ "declare void @printInt(i32 %x)\n"
+    -- ++ "declare void @printBool(i1 %x)\n"
     ++ "declare void @printString(i8* %x)\n"
     ++ "declare i32 @printf(i8*, ...)\n"
     ++ "declare i32 @scanf(i8*, ...)\n"
@@ -273,40 +274,44 @@ complieExpression (EString pos str) = do
   let strDeclarations = "@s" ++ show num ++ " = private constant [" ++ show len ++ " x i8] c\"" ++ prepString str ++ "\\00\"\n"
   return (RegV reg, asignCode, CStr, strDeclarations)
 complieExpression (Neg pos expr) = complieExpression (EAdd pos (ELitInt pos 0) (Minus pos) expr)
-complieExpression (EAnd pos e1 e2) = do return (IntV 0,"",CBool,"")
-  -- (result1, text1, ctype1, _) <- complieExpression e1
-  -- labE1True <- useLabel
-  -- labE1False <- useLabel
-  -- labEnd <- useLabel
-  -- (Reg num) <- useNewReg
-  -- let ident = Ident $ "and" ++ show num
-  -- (varText, sd) <- initVar CBool [Init pos ident (ELitTrue pos)]
-  -- (setTrueText, sd2) <- compileStmt (Ass pos ident e2)
-  -- (setE2Text, sd3) <- compileStmt (Ass pos ident (ELitFalse pos))
-  -- case result1 of
-  --   IntV val1 -> do  return (IntV val1, "", CBool, sd ++ sd2 ++ sd3)
-  --   RegV reg1 -> do
-  --     let ifInstr = IfElseI reg1 labE1True labE1False labEnd setTrueText setE2Text
-  --     (ctype, var) <- getVar ident
-  --     res <- useNewReg
-  --     return (RegV res, varText ++ text1 ++ show ifInstr ++ "", CBool, sd ++ sd2 ++ sd3)
-complieExpression (EOr pos e1 e2) =  do return (IntV 0,"",CBool,"")
-  -- (result1, text1, ctype1, _) <- complieExpression e1
-  -- labE1True <- useLabel
-  -- labE1False <- useLabel
-  -- labEnd <- useLabel
-  -- (Reg num) <- useNewReg
-  -- let ident = Ident $ "or" ++ show num
-  -- (varText, sd1) <- initVar CBool [Init pos ident (ELitFalse pos)]
-  -- (setTrueText, sd2) <- compileStmt (Ass pos ident (ELitTrue pos))
-  -- (setE2Text, sd3) <- compileStmt (Ass pos ident e2)
-  -- case result1 of
-  --   IntV val1 -> do  return (IntV val1, "", CBool, sd1 ++ sd2 ++ sd3)
-  --   RegV reg1 -> do
-  --     let ifInstr = IfElseI reg1 labE1True labE1False labEnd setTrueText setE2Text
-  --     (ctype, var) <- getVar ident
-  --     res <- useNewReg
-  --     return (RegV res, varText ++ text1 ++ show ifInstr ++ "", CBool, sd1 ++ sd2 ++ sd3)
+complieExpression (EAnd pos e1 e2) = do
+  -- and_val = warunek_1
+  -- if(and_val){
+  --   and_val = warunek_2
+  -- }
+
+  -- new var
+  (Reg num) <- useNewReg
+  let ident = Ident $ "and" ++ show num
+  (varText, sd3) <- initVar CBool [Init pos ident (ELitTrue pos)]
+  
+  -- and_val = warunek 1
+  (setVarToE1Code, sd4) <- compileStmt (Ass pos ident e1)
+
+  -- if 
+  (setVarToE2Code, sd5) <- compileStmt (Cond pos (EVar pos ident) (Ass pos ident e2))
+
+  (_,resVal) <- getVar ident 
+  return (resVal,varText ++ setVarToE1Code ++ setVarToE2Code ,CBool,sd3 ++ sd4 ++ sd5)
+
+complieExpression (EOr pos e1 e2) =  do
+    -- new var
+  (Reg num) <- useNewReg
+  let ident = Ident $ "and" ++ show num
+  (varText, sd3) <- initVar CBool [Init pos ident (ELitTrue pos)]
+  
+  -- and_val = warunek 1
+  (setVarToE1Code, sd4) <- compileStmt (Ass pos ident e1)
+
+  -- if 
+  (setVarToE2Code, sd5) <- compileStmt (Cond pos (Not pos (EVar pos ident)) (Ass pos ident e2))
+
+  (_,resVal) <- getVar ident 
+  return (resVal,varText ++ setVarToE1Code ++ setVarToE2Code ,CBool,sd3 ++ sd4 ++ sd5)
+
+
+  -- (_,resVal) <- getVar ident 
+  -- return (resVal,varText ++ setVarToE1Code ++ setVarToE2Code ,CBool,sd3 ++ sd4 ++ sd5)
 
 complieExpression (Not pos expr) = do
   (exprResult, code, ctype, strDeclarations) <- complieExpression expr

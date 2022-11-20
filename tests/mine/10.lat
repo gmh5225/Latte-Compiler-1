@@ -1,0 +1,22 @@
+###### Bool expression evalaluation ######
+
+int main() {
+    printBool(test(-1) && test(0));
+    printBool(test(-1) || test(0));
+    return 0;
+}
+
+boolean test(int i) {
+  printInt(i);
+  return i > 0;
+}
+
+void printBool(boolean b) {
+  if (b) {
+    printString("true");
+    return;
+  } else {
+    printString("false");
+    return;
+ }
+}
