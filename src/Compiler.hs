@@ -166,16 +166,6 @@ compileStmt (CondElse _ expr stmt1 stmt2) = do
    -- wrcam z stanem do pierwszego
   setStore prevStore
   -- put (prevEnv, prevVenv, prevStore, prevLoc, prevReg, prevLabel, prevVar)
-
-  -- loop po prevStore jezeli jalas lokacja z prevStore ma inne Val w true, false -> do phi (Na poczatek mozna dla kazdej)
-
-  -- baza:
-  -- skacza warunkowo true/false
-  -- true
-  -- koniec true
-  -- false
-  -- koniec false
-  -- koniec if
     
   labBase <- useLabel
   labTrue <- useLabel
@@ -190,19 +180,106 @@ compileStmt (CondElse _ expr stmt1 stmt2) = do
   
   return ( exprCode++ show (IfElseI exprResult labBase labTrue labFalse labEnd stmt1Res stmt2Res endTrue endFalse) ++  resultCode, strDeclarations1 ++ strDeclarations2 ++ strDeclarations3)
 
-compileStmt (While pos expr stmt) = do return  ("","") -- TODO
-  -- (exprResult, exprCode, exprType, strDeclarations1) <- complieExpression expr
-  -- (stmtRes, strDeclarations2) <- compileStmt stmt
-  -- labCheck <- useLabel
-  -- labTrue <- useLabel
-  -- labEnd <- useLabel
-  -- case exprResult of
-  --   IntV exprVal -> do return ("","")
-  --   RegV exprReg -> do
-  --     return (show (WhileI exprReg exprCode labCheck labTrue labEnd stmtRes), strDeclarations1 ++ strDeclarations2)
+compileStmt (While pos expr stmt) = do
+
+  -- Zapisuje stan przed petla (przed body)
+  (prevEnv, prevVenv, prevStore, prevLoc, prevReg, prevLabel, prevVar) <- get
+
+  -- Update store -> nowe rejestry dla wszystkich zmiennych
+  newRegisters -- jak powiedzmy x mialo r0 wczesniej to teraz ma r1 ale nie dodaje instrukcji przypisania
+  
+  (updatedEnv, updatedVenv, updatedStore, updatedLoc, updatedReg, updatedLabel, updatedVar) <- get
+
+  -- WYkonujemy expr warunku
+  (exprResult, exprCode, exprType, strDeclarations1) <- complieExpression expr --tutaj powiedzmy x to r2
+
+  -- zapisuje store po warunku
+  (condEnv, condVenv, condStore, condLoc, condReg, condLabel, condVar) <- get
+  
+  -- Wykonuje body
+  (stmt1Res, strDeclarations) <- compileStmt stmt -- tu powiedzmy x to r3
+
+  -- -- zapisuje store po body
+  (bodyEnv, bodyVenv, bodyStore, bodyLoc, bodyReg, bodyLabel, bodyVar) <- get
+  
+    
+  labBase <- useLabel
+  labCond <- useLabel
+
+  labBody <- useLabel
+  endBody <- useLabel
+
+  -- endBody <- useLabel
+  
+  labEnd <- useLabel
+
+  condPhi <- generate3Phi updatedStore prevStore bodyStore labBase endBody
+
+  -- return ("","")
+
+  -- endPhi <- generate2Phi bodyStore condStore labBody labCond
+
+  let result1 = show (JmpI labBase) ++ show labBase ++ ":\n"
+  let result2 = result1 ++ show (JmpI labCond) 
+  let result3 = result2 ++ show labCond ++ ":\n" 
+  let result4 = result3 ++ condPhi 
+  let result5 = result4 ++ exprCode 
+  let result6 = result5 ++ show (BrI exprResult labBody labEnd) 
+  let result7 = result6 ++ show labBody ++ ":\n" 
+  let result8 = result7 ++ stmt1Res ++ show (JmpI endBody)  ++ show endBody ++ ":\n" 
+  let result9 = result8 ++ show (JmpI labCond) 
+  let result = result9 ++ "" ++ show (JmpI labEnd) ++ show labEnd ++ ":\n" 
+    
+  return (result, strDeclarations)
+
+
+
+  -- Wynik to: 
+  -- lable_przed_wszystkim:
+  -- label_warunek: 
+  -- phi label_przed_wsyzstkim / label_body
+  -- obliczanie warunku
+  -- brI warunek | label_koniec / label_body
+  -- label_body:
+  -- Cialo funkcji
+  -- Jmp label_warunek
+  -- label_koniec:
+  -- phi label_koniec / label_warunek
+
+  -- -- Zadnim policze warunek musze wiedziec skad brac jesestry - phi
+  -- resultCode <- generatePhi prevStore bodyStore bodyStore labBase labBody (Lab 0) endBody (Lab 0)
+
+  -- -- Warunek
+
+
+  -- return (show (JmpI labBase) ++ show labBase ++ ":\n" ++ show (JmpI labCond) ++ show labBody ++ ":\n"++  stmt1Res ++ show (JmpI endBody) ++ show endBody ++ ":\n" ++
+  --    show (JmpI labCond) ++ show labCond ++ ":\n" ++ resultCode++ exprCode ++ show (BrI exprResult labBase labEnd) ++ show labEnd ++ ":\n",strDeclarations)
+  --   --  show (IfElseI exprResult labBase labTrue labFalse labEnd stmt1Res stmt2Res endTrue endFalse) ++  resultCode, strDeclarations1 ++ strDeclarations2 ++ strDeclarations3)
+
+  -- -- labTrue <- useLabel
+  -- -- endTrue <- useLabel
+
+  -- --   labTrue <- useLabel
+  -- --   labEnd <- useLabel
+  -- --   labCond <- useLabel
+
+  -- --   (stmtRes, strDeclarations2) <- compileStmt stmt
+  -- --   (exprResult, exprCode, exprType, strDeclarations1) <- complieExpression expr
+
+  -- --   let res = show (JmpI labCond) ++ show labTrue ++ ":\n" ++ stmtRes ++ show labCond ++ ":\n" ++ exprCode ++ show (BrI exprResult labTrue labEnd) ++ show labEnd ++ ":\n"
+  -- --   -- let  = res ++ "a"
+  --   return (res,strDeclarations2)
+  -- --   labCheck <- useLabel
+  -- --   labTrue <- useLabel
+  -- --   labEnd <- useLabel
+  --   case exprResult of
+  --     IntV exprVal -> do return ("","")
+  --     RegV exprReg -> do
+--       return (show (WhileI (RegV exprReg) exprCode labCheck labTrue labEnd stmtRes), strDeclarations1 ++ strDeclarations2)
 compileStmt (SExp pos expr) = do
   (_, code, _, strDeclarations) <- complieExpression expr
   return (code, strDeclarations)
+-- compileStmt inna = return (show inna,"")
 
 initVar :: CType -> [Item] -> Compl (LLVMCode, StrDeclarations)
 initVar varType [] = do return ("", "")
