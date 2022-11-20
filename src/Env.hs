@@ -47,14 +47,6 @@ addVar varType ident = do
   put (penv, Map.insert ident (loc+1) venv, Map.insert (loc+1) (varType, RegV reg) store, loc + 2, nextReg reg, label,  var)
   return reg
 
-setVarReg :: Ident -> Register -> Compl ()
-setVarReg ident newReg = do
-    (penv, venv, store, loc, reg, label, var) <- get
-    let (Just varLoc) = Map.lookup ident venv
-    let (Just (varType, _)) = Map.lookup varLoc store
-    put  (penv, venv, Map.insert varLoc (varType, RegV newReg) store, loc, reg, label, var)
-    return ()
-
 setVarVal :: Ident -> Val -> Compl ()
 setVarVal ident val = do
     (penv, venv, store, loc, reg, label, var) <- get
@@ -111,7 +103,7 @@ setLocVal loc val = do
 generatePhi :: Store -> Store -> Store -> Label -> Label -> Label -> Label -> Label -> Compl String
 generatePhi pStore tStore fStore bLab tLab fLab endTrue endFalse = do
   let f k v a = (a ++  [(k, v)])  
-  let pArr = foldrWithKey f [] pStore -- [(Loc, (CType, Val))]
+  let pArr = foldrWithKey f [] pStore
 
   result <- mapPhi bLab tLab fLab pArr tStore fStore endTrue endFalse
   return result
@@ -136,7 +128,7 @@ newRegisters :: Compl ()
 newRegisters = do
   (penv, venv, store, _, reg, label, var) <- get
   let f k v a = (a ++  [(k, v)])  
-  let pArr = foldrWithKey f [] store -- [(Loc, (CType, Val))] <- array storea
+  let pArr = foldrWithKey f [] store
   newRegister pArr
 
 newRegister :: [(Loc,(CType,Val))] -> Compl ()
@@ -149,44 +141,12 @@ newRegister ((vloc,(ctype,val)):rest) = do
 
   newRegister rest
   return ()
-
-
-generate2Phi :: Store -> Store -> Label -> Label -> Compl String
-generate2Phi store1 store2 label1 label2 = do
-  let f k v a = (a ++  [(k, v)])  
-  let pArr = foldrWithKey f [] store1 -- [(Loc, (CType, Val))] ogarniam pierwotny store na array
-
-  result <- map2Phi store1 store2 pArr label1 label2 
-  return result
-
-map2Phi :: Store -> Store -> [(Loc, (CType, Val))] -> Label -> Label -> Compl String
-map2Phi store1 store2 [] label1 label2  = return "" 
-map2Phi store1 store2  ((loc,(ctype,val)):pArr) label1 label2 = do
-  result <- map2Phi store1 store2 pArr label1 label2
-
-  -- reg <- useNewReg -- juz dodalismy nowe rejestry co chcemy przypisac dla phi
-  reg <- useNewReg
-  -- let (RegV reg) = val
-
-  r <- setLocVal loc (RegV reg)
-
-  let (Just (_,val1)) = Map.lookup loc store1
-  let (Just (_,val2)) = Map.lookup loc store2
-
-  let currResult =  show reg  ++ "= phi " ++ show ctype  ++ " ["++ show val1 ++", %"++ show label1 ++ "], " ++  "["++ show val2 ++", %"++ show label2 ++ "]\n"
-
-  return $ result ++ currResult ++ "\n\n"
-
-
-
-  -----------------------------------------
   
 generate3Phi :: Store -> Store -> Store -> Label -> Label -> Compl String
 generate3Phi updatedStore store1 store2 label1 label2 = do
   let f k v a = (a ++  [(k, v)])  
-  let pArr = foldrWithKey f [] updatedStore -- [(Loc, (CType, Val))] ogarniam pierwotny store na array
-
-  -- let result = ""
+  let pArr = foldrWithKey f [] updatedStore
+  
   result <- map3Phi store1 store2 pArr label1 label2 
   return result
 

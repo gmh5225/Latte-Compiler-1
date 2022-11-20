@@ -133,7 +133,7 @@ compileStmt (Ret pos expr) = do
   case exprResult of
     (IntV exprVal) -> return ("ret i32 "++ show exprVal ++ "\n" ,strDeclarations)
     (RegV exprReg) -> return (exprCode ++ show (RetI exprType exprReg), strDeclarations)
-    (BoolV boolVal) -> return ("ret i1 "++ show boolVal ++ "\n" ,strDeclarations)
+    (BoolV boolVal) -> return ("ret i1 "++ show (BoolV boolVal) ++ "\n" ,strDeclarations)
 compileStmt (VRet _) = return (show VRetI, "")
 compileStmt (Cond _ (ELitTrue _) stmt) = compileStmt stmt
 compileStmt (Cond _ (ELitFalse _) stmt) = return ("", "")
@@ -310,16 +310,14 @@ complieExpression (EOr pos e1 e2) =  do
   return (resVal,varText ++ setVarToE1Code ++ setVarToE2Code ,CBool,sd3 ++ sd4 ++ sd5)
 
 
-  -- (_,resVal) <- getVar ident 
-  -- return (resVal,varText ++ setVarToE1Code ++ setVarToE2Code ,CBool,sd3 ++ sd4 ++ sd5)
-
 complieExpression (Not pos expr) = do
   (exprResult, code, ctype, strDeclarations) <- complieExpression expr
   reg <- useNewReg
   case exprResult of
-    IntV exprVal -> do  return (IntV exprVal, "", CBool,"")
-    RegV exprReg -> do
-      return (RegV reg, code ++ show (BoolI reg XorOp (IntV 1) (RegV exprReg)), CBool, strDeclarations)
+    BoolV False -> do return (BoolV True, "", CBool,"")
+    BoolV True -> do return (BoolV False, "", CBool,"")
+    IntV exprVal -> do return (IntV exprVal, "", CBool,"")
+    RegV exprReg -> do return (RegV reg, code ++ show (BoolI reg XorOp (IntV 1) (RegV exprReg)), CBool, strDeclarations)
 
 compileArgsExpr :: [Expr] -> Compl (String, String, String)
 compileArgsExpr [] = return ("", "", "")
