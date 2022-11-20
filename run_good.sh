@@ -1,7 +1,6 @@
 #!/bin/bash
 
-make
-clear
+make > tmp.output 2>&1
 
 for filename in good/*.lat; do    
     ./latc_llvm $filename &> tmp.txt

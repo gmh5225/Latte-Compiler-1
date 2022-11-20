@@ -22,9 +22,7 @@ data Env = Env { sPenv :: PEnv,
                   sStore :: Store,
                   sLoc :: Loc,
                   sRegister :: Register,
-                  sLabel :: Label,
-                  -- var :: PEnv,
-                  sVar :: Var}
+                  sLabel :: Label}
 
 type Compl a = ExceptT Error (StateT Env IO) a
 
@@ -44,8 +42,7 @@ initEnv = Env { sPenv = fromList
     sStore = Map.empty,
     sLoc = 0,
     sRegister = Reg 0,
-    sLabel = Lab 0,
-    sVar = Var 0
+    sLabel = Lab 0
   }
 
 -- Prawdopodobnie w jakims miejscu nie aktualalizuje loc TODO
@@ -196,19 +193,18 @@ map3Phi store1 store2  ((loc,(ctype,val)):pArr) label1 label2 = do
   return $ result ++ currResult ++ "\n\n"
 
 
-getDepr :: Compl (PEnv, VEnv, Store, Loc, Register, Label, Var)
+getDepr :: Compl (PEnv, VEnv, Store, Loc, Register, Label)
 getDepr = do
   state <- get
-  return (sPenv state, sVenv state, sStore state, sLoc state, sRegister state, sLabel state, sVar state)
+  return (sPenv state, sVenv state, sStore state, sLoc state, sRegister state, sLabel state)
 
 
-putDepr :: (PEnv, VEnv, Store, Loc, Register, Label, Var) -> Compl ()
-putDepr (penv, venv, store, loc, register, label, var) = do
+putDepr :: (PEnv, VEnv, Store, Loc, Register, Label) -> Compl ()
+putDepr (penv, venv, store, loc, register, label) = do
   state <- get
   put state {sPenv = penv, 
             sVenv = venv, 
             sStore = store,
             sLoc =loc,
             sRegister=register,
-            sLabel = label,
-            sVar = var}
+            sLabel = label}
