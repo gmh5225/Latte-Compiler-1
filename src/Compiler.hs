@@ -62,7 +62,7 @@ compileProgram (Program pos topDefs) = do
 addFuncDefinition :: [TopDef] -> Compl ()
 addFuncDefinition [] = return ()
 addFuncDefinition ((FnDef pos retType (Ident name) args block) : defs) = do
-  _ <- addProc (getCType retType) (Ident name) (Prelude.map getArgCType args)
+  addProc (getCType retType) (Ident name) (Prelude.map getArgCType args)
   addFuncDefinition defs
 
 compileFuncDefs :: [TopDef] -> Compl LLVMCode
@@ -178,7 +178,7 @@ compileStmt (CondElse _ expr stmt1 stmt2) = do
 
   labEnd <- useLabel
   
-  resultCode <- generatePhi prevStore trueStore falseStore labBase labTrue labFalse endTrue endFalse
+  resultCode <- generatePhi prevStore trueStore falseStore endTrue endFalse
   
   return ( exprCode++ show (IfElseI exprResult labBase labTrue labFalse labEnd stmt1Res stmt2Res endTrue endFalse) ++  resultCode, strDeclarations1 ++ strDeclarations2 ++ strDeclarations3)
 

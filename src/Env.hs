@@ -17,6 +17,8 @@ type PEnv = Map Ident CType
 
 type Store = Map Loc (CType, Val)
 
+type StoreArray = [(Loc, (CType, Val))]
+
 data Env = Env { sPenv :: PEnv,
                   sVenv :: VEnv,
                   sStore :: Store,
@@ -26,8 +28,6 @@ data Env = Env { sPenv :: PEnv,
 
 type Compl a = ExceptT Error (StateT Env IO) a
 
--- initEnv :: Env
--- initEnv = Env {}
 initEnv :: Env
 initEnv = Env { sPenv = fromList
       [ (Ident "printInt", CFun CVoid [CInt]),
@@ -63,13 +63,9 @@ addVar varType ident = do
 setVarVal :: Ident -> Val -> Compl ()
 setVarVal ident val = do
     state <- get
-    let venv = sVenv state
-    let store = sStore state
-
-    let (Just varLoc) = Map.lookup ident venv
-    let (Just (varType, _)) = Map.lookup varLoc store
-    
-    put state {sStore = Map.insert varLoc (varType, val) store}
+    let (Just loc) = Map.lookup ident (sVenv state)
+    let (Just (vtype, _)) = Map.lookup loc (sStore state)
+    put state {sStore = Map.insert loc (vtype, val) (sStore state)}
 
 addProc :: CType -> Ident -> [CType] -> Compl ()
 addProc retType ident argsTypes = do
@@ -79,62 +75,57 @@ addProc retType ident argsTypes = do
 useNewReg :: Compl Register
 useNewReg = do
   state <- get
-  let reg = sRegister state
-  put state {sRegister = nextReg reg}
-  return reg
+  put state {sRegister = nextReg (sRegister state)}
+  return $ sRegister state
 
 useLabel :: Compl Label
 useLabel = do
   state <- get
-  let label = sLabel state
-  put state {sLabel = nextLabel label}
-  return label
+  put state {sLabel = nextLabel (sLabel state)}
+  return $ sLabel state
   
 setStore :: Store -> Compl ()
 setStore store = do
   state <- get
   put state {sStore = store}
-  -- put (penv, venv, store, loc, reg, nextLabel label, var)
 
 getVar :: Ident -> Compl (CType, Val)
 getVar ident = do
-  state <- get
-  let venv = sVenv state
-  let store = sStore state
-  
-  let (Just varLoc) = Map.lookup ident venv
-  let (Just (ctype, varVal)) = Map.lookup varLoc store
-  return (ctype, varVal)  
+  state <- get  
+  let (Just loc) = Map.lookup ident $ sVenv state
+  let (Just result) = Map.lookup loc $ sStore state
+  return result  
 
 getProc :: Ident -> Compl (CType, [CType])
 getProc ident = do
-  state <- get
-  let penv = sPenv state
-  
-  let (Just (CFun retType argsTypes)) = Map.lookup ident penv
+  state <- get  
+  let (Just (CFun retType argsTypes)) = Map.lookup ident $ sPenv state
   return (retType, argsTypes)
 
 setLocVal :: Loc -> Val -> Compl ()
 setLocVal loc val = do
   state <- get
-  let store = sStore state
-  
-  let (Just (varType, _)) = Map.lookup loc store
-  put state {sStore = Map.insert loc (varType, val) store}
+  let (Just (vtype, _)) = Map.lookup loc (sStore state)
+  put state {sStore = Map.insert loc (vtype, val) (sStore state)}
+
+
+storeToArray :: Store -> Compl StoreArray
+storeToArray store = do
+  let f k v a = (a ++ [(k, v)])  
+  return $ foldrWithKey f [] store
 
 -- TODO: Cleanup
-generatePhi :: Store -> Store -> Store -> Label -> Label -> Label -> Label -> Label -> Compl String
-generatePhi pStore tStore fStore bLab tLab fLab endTrue endFalse = do
-  let f k v a = (a ++  [(k, v)])  
-  let pArr = foldrWithKey f [] pStore
-
-  result <- mapPhi bLab tLab fLab pArr tStore fStore endTrue endFalse
+-- Generuje instukcje phi dla kazdej zminnej z store1 z [lablel,val] odpowiednio z store2/3
+generatePhi :: Store -> Store -> Store -> Label -> Label -> Compl String
+generatePhi pStore tStore fStore  endTrue endFalse = do
+  pArr <- storeToArray pStore
+  result <- mapPhi pArr tStore fStore endTrue endFalse
   return result
 
-mapPhi :: Label -> Label -> Label -> [(Loc, (CType, Val))] -> Store -> Store -> Label -> Label -> Compl String
-mapPhi bL tL fL [] tStore fStore endTrue endFalse  = return "" 
-mapPhi bL tL fL ((loc,(ctype,val)):pArr) tStore fStore  endTrue endFalse = do
-  result <- mapPhi bL tL fL pArr tStore fStore endTrue endFalse
+mapPhi :: StoreArray -> Store -> Store -> Label -> Label -> Compl String
+mapPhi [] tStore fStore endTrue endFalse  = return "" 
+mapPhi ((loc,(ctype,val)):pArr) tStore fStore  endTrue endFalse = do
+  result <- mapPhi pArr tStore fStore endTrue endFalse
 
   reg <- useNewReg
 
@@ -150,32 +141,25 @@ mapPhi bL tL fL ((loc,(ctype,val)):pArr) tStore fStore  endTrue endFalse = do
 newRegisters :: Compl ()
 newRegisters = do
   state <- get
-  let store = sStore state
-  let f k v a = (a ++  [(k, v)])  
-  let pArr = foldrWithKey f [] store
+  pArr <- storeToArray (sStore state)
   newRegister pArr
 
-newRegister :: [(Loc,(CType,Val))] -> Compl ()
+newRegister :: StoreArray -> Compl ()
 newRegister [] = return ()
-newRegister ((vloc,(ctype,val)):rest) = do
+newRegister ((vloc,(ctype,val)):arr) = do
   newReg <- useNewReg
-  -- (penv, venv, store,loc, reg, label, var) <- get
   state <- get
-  let store = sStore state
-  put state {sStore = Map.insert vloc (ctype,RegV newReg) store}
-
-  newRegister rest
-  return ()
+  put state {sStore = Map.insert vloc (ctype, RegV newReg) (sStore state)}
+  newRegister arr
   
+-- tak jak generatePhi generuje phi ale tutaj mapPhi nie dodaje nowych rejestrow tylko bierze bo juz zrobilismy newRegister
 generate3Phi :: Store -> Store -> Store -> Label -> Label -> Compl String
 generate3Phi updatedStore store1 store2 label1 label2 = do
-  let f k v a = (a ++  [(k, v)])  
-  let pArr = foldrWithKey f [] updatedStore
-  
+  pArr <- storeToArray updatedStore
   result <- map3Phi store1 store2 pArr label1 label2 
   return result
 
-map3Phi :: Store -> Store -> [(Loc, (CType, Val))] -> Label -> Label -> Compl String
+map3Phi :: Store -> Store -> StoreArray -> Label -> Label -> Compl String
 map3Phi store1 store2 [] label1 label2  = return "" 
 map3Phi store1 store2  ((loc,(ctype,val)):pArr) label1 label2 = do
   result <- map3Phi store1 store2 pArr label1 label2
