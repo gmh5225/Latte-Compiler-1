@@ -1,15 +1,19 @@
 #!/bin/bash
 
 make
+clear
 
 for filename in bad/*.lat; do    
-    ./latc_llvm $filename &> tmp.txt
+    ./latc_llvm $filename > tmp.txt 2>&1
     status=$?    
 
     if [[ $status = 0 ]]
     then
-        echo $filename
-    fi 
+        echo "${filename}  -  ❌" 
+        cat tmp.txt
+    else
+        echo "${filename}  -  ✅" 
+    fi
         
     rm tmp.txt
 done

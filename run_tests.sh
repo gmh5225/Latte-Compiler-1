@@ -10,7 +10,7 @@ then
 fi
 # printf  "###### Run make ✅\n\n"
 
-for filenameLat in tests/mine/*.lat; do
+for filenameLat in $1/*.lat; do
     filenameNoExtension="${filenameLat%%.*}"
     
     ./latc_llvm $filenameLat > tmp.output
@@ -23,7 +23,13 @@ for filenameLat in tests/mine/*.lat; do
     fi
     # printf "###### Compiling file ${filenameNoExtension} ✅\n"
 
-    lli "${filenameNoExtension}.bc" > tmp.output
+    if test -f "${filenameNoExtension}.input"; 
+    then
+        lli "${filenameNoExtension}.bc" > tmp.output < "${filenameNoExtension}.input"
+    else
+        lli "${filenameNoExtension}.bc" > tmp.output
+    fi
+     
 
     if [[ $? != 0 ]] 
     then
@@ -41,13 +47,21 @@ for filenameLat in tests/mine/*.lat; do
     if [[ $? != 0 ]] 
     then
         printf "###### Error while comparing result of ${filenameNoExtension}❌:\n\n"
-        cat diff.output
+        printf "###### Expected:\n\n"
+        cat ${filenameNoExtension}.output
+        printf "\n##############################\n"
+
+        printf "###### Got:\n\n"
+        cat tmp.output
+        printf "\n##############################\n"
+        
+        # cat diff.output
         exit 1
     fi
     line=$(head -n 1 ${filenameNoExtension}.lat)
 
     # printf "###### Comparing result of ${filenameNoExtension} ✅\n"
-    printf "${line} ✅\n"
+    printf "${filenameNoExtension}: ${line} ✅\n"
 
     
 done

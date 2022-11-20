@@ -9,7 +9,10 @@ for filename in good/*.lat; do
 
     if [[ $status != 0 ]]
     then
-        echo $filename
+        echo "${filename}  -  ❌" 
+        cat tmp.txt
+    else
+        echo "${filename}  -  ✅" 
     fi
         
     rm tmp.txt
