@@ -208,16 +208,11 @@ compileStmt (While pos expr stmt) = do
 
   labBody <- useLabel
   endBody <- useLabel
-
-  -- endBody <- useLabel
   
   labEnd <- useLabel
 
   condPhi <- generate3Phi updatedStore prevStore bodyStore labBase endBody
 
-  -- return ("","")
-
-  -- endPhi <- generate2Phi bodyStore condStore labBody labCond
 
   let result1 = show (JmpI labBase) ++ show labBase ++ ":\n"
   let result2 = result1 ++ show (JmpI labCond) 
@@ -232,54 +227,9 @@ compileStmt (While pos expr stmt) = do
     
   return (result, strDeclarations)
 
-
-
-  -- Wynik to: 
-  -- lable_przed_wszystkim:
-  -- label_warunek: 
-  -- phi label_przed_wsyzstkim / label_body
-  -- obliczanie warunku
-  -- brI warunek | label_koniec / label_body
-  -- label_body:
-  -- Cialo funkcji
-  -- Jmp label_warunek
-  -- label_koniec:
-  -- phi label_koniec / label_warunek
-
-  -- -- Zadnim policze warunek musze wiedziec skad brac jesestry - phi
-  -- resultCode <- generatePhi prevStore bodyStore bodyStore labBase labBody (Lab 0) endBody (Lab 0)
-
-  -- -- Warunek
-
-
-  -- return (show (JmpI labBase) ++ show labBase ++ ":\n" ++ show (JmpI labCond) ++ show labBody ++ ":\n"++  stmt1Res ++ show (JmpI endBody) ++ show endBody ++ ":\n" ++
-  --    show (JmpI labCond) ++ show labCond ++ ":\n" ++ resultCode++ exprCode ++ show (BrI exprResult labBase labEnd) ++ show labEnd ++ ":\n",strDeclarations)
-  --   --  show (IfElseI exprResult labBase labTrue labFalse labEnd stmt1Res stmt2Res endTrue endFalse) ++  resultCode, strDeclarations1 ++ strDeclarations2 ++ strDeclarations3)
-
-  -- -- labTrue <- useLabel
-  -- -- endTrue <- useLabel
-
-  -- --   labTrue <- useLabel
-  -- --   labEnd <- useLabel
-  -- --   labCond <- useLabel
-
-  -- --   (stmtRes, strDeclarations2) <- compileStmt stmt
-  -- --   (exprResult, exprCode, exprType, strDeclarations1) <- complieExpression expr
-
-  -- --   let res = show (JmpI labCond) ++ show labTrue ++ ":\n" ++ stmtRes ++ show labCond ++ ":\n" ++ exprCode ++ show (BrI exprResult labTrue labEnd) ++ show labEnd ++ ":\n"
-  -- --   -- let  = res ++ "a"
-  --   return (res,strDeclarations2)
-  -- --   labCheck <- useLabel
-  -- --   labTrue <- useLabel
-  -- --   labEnd <- useLabel
-  --   case exprResult of
-  --     IntV exprVal -> do return ("","")
-  --     RegV exprReg -> do
---       return (show (WhileI (RegV exprReg) exprCode labCheck labTrue labEnd stmtRes), strDeclarations1 ++ strDeclarations2)
 compileStmt (SExp pos expr) = do
   (_, code, _, strDeclarations) <- complieExpression expr
   return (code, strDeclarations)
--- compileStmt inna = return (show inna,"")
 
 initVar :: CType -> [Item] -> Compl (LLVMCode, StrDeclarations)
 initVar varType [] = do return ("", "")
@@ -287,7 +237,7 @@ initVar CStr ((NoInit pos ident) : items) = initVar CStr ((Init pos ident (EStri
 initVar CInt ((NoInit pos ident) : items) = initVar CInt ((Init pos ident (ELitInt pos 0)) : items)
 initVar CBool ((NoInit pos ident) : items) = initVar CBool ((Init pos ident (ELitFalse pos)) : items) 
 initVar varType ((Init pos ident expr) : items) = do
-  (exprResult, exprCode, _, strDeclarations1) <- complieExpression expr
+  (exprResult, exprCode, retType, strDeclarations1) <- complieExpression expr
   addVar varType ident
   setVarVal ident exprResult
   (varsCode, strDeclarations2) <- initVar varType items

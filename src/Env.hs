@@ -40,10 +40,11 @@ initEnv =
     Var 0
   )
 
+-- Prawdopodobnie w jakims miejscu nie aktualalizuje loc TODO
 addVar :: CType -> Ident -> Compl Register
 addVar varType ident = do
   (penv, venv, store, loc, reg, label, var) <- get
-  put (penv, Map.insert ident loc venv, Map.insert loc (varType, RegV reg) store, loc + 1, nextReg reg, label,  var)
+  put (penv, Map.insert ident (loc+1) venv, Map.insert (loc+1) (varType, RegV reg) store, loc + 2, nextReg reg, label,  var)
   return reg
 
 setVarReg :: Ident -> Register -> Compl ()
