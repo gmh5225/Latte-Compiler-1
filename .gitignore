@@ -8,3 +8,4 @@ src/*.hi
 src/*.o
 latc_llvm
 latc
+.vscode
