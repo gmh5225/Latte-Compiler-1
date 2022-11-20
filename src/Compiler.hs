@@ -79,13 +79,13 @@ compileFuncDef :: TopDef -> Compl LLVMCode
 compileFuncDef (FnDef pos retType (Ident name) args block) = do
 
   -- Funkcja ma osobny store i zmienne - nie ma dostepu do tych z main
-  (prevEnv, prevVenv, prevStore, prevLoc, prevReg, prevLabel, prevVar) <- get
+  (prevEnv, prevVenv, prevStore, prevLoc, prevReg, prevLabel, prevVar) <- getDepr
 
   (argsCode, initArgsCode) <- compileArgs args
   (blockCode, strDeclarations) <- compileBlock block
 
-  (newEnv, newVenv, newStore, newLoc, newReg, newLabel, newVar) <- get
-  put (prevEnv, prevVenv, prevStore, newLoc, newReg, newLabel, newVar)
+  (newEnv, newVenv, newStore, newLoc, newReg, newLabel, newVar) <- getDepr
+  putDepr (prevEnv, prevVenv, prevStore, newLoc, newReg, newLabel, newVar)
 
   let blockCore = strDeclarations ++ "\ndefine " ++ typeToLLVM retType ++ " @" ++ name ++ "(" ++ argsCode ++ ") {\n" ++ initArgsCode ++"\n" ++ blockCode
   case retType of
@@ -116,10 +116,10 @@ compileStmts (stmt : stmts) = do
 compileStmt :: Stmt -> Compl (LLVMCode, StrDeclarations)
 compileStmt (Empty pos) = do return ("", "")
 compileStmt (BStmt _ (Block _ stmts)) = do
-  (penv, venv, store, loc, reg, label, var) <- get
+  (penv, venv, store, loc, reg, label, var) <- getDepr
   (blockCode, strDeclarations) <- compileStmts stmts
-  (postPenv, postVenv, postStore, postLoc, postReg, postLabel, postVar) <- get
-  put (penv, venv, postStore, loc, postReg, postLabel, postVar)
+  (postPenv, postVenv, postStore, postLoc, postReg, postLabel, postVar) <- getDepr
+  putDepr (penv, venv, postStore, loc, postReg, postLabel, postVar)
   return ("\n " ++ blockCode ++ "\n", strDeclarations)
 compileStmt (Decl pos varType items) = initVar (getCType varType) items
 compileStmt (Ass pos ident expr) = do
@@ -146,27 +146,27 @@ compileStmt (CondElse _ expr stmt1 stmt2) = do
   (exprResult, exprCode, exprType, strDeclarations1) <- complieExpression expr
 
   -- zapisuje store przef ifem
-  (prevEnv, prevVenv, prevStore, prevLoc, prevReg, prevLabel, prevVar) <- get
+  (prevEnv, prevVenv, prevStore, prevLoc, prevReg, prevLabel, prevVar) <- getDepr
 
   -- Wykonuje blok true
   (stmt1Res, strDeclarations2) <- compileStmt stmt1
 
   -- zapisuje store po bloklu true
-  (trueEnv, trueVenv, trueStore, trueLoc, trueReg, trueLabel, trueVar) <- get
+  (trueEnv, trueVenv, trueStore, trueLoc, trueReg, trueLabel, trueVar) <- getDepr
 
   -- -- wrcam z stanem do pierwszego
   setStore prevStore
-  -- put (prevEnv, prevVenv, prevStore, prevLoc, prevReg, prevLabel, prevVar)
+  -- putDepr (prevEnv, prevVenv, prevStore, prevLoc, prevReg, prevLabel, prevVar)
 
   -- Wykonuje blok flase
   (stmt2Res, strDeclarations3) <- compileStmt stmt2
     
   -- zapisuje store po bloklu false
-  (falseEnv, falseVenv, falseStore, falseLoc, falseReg, falseLabel, falseVar) <- get
+  (falseEnv, falseVenv, falseStore, falseLoc, falseReg, falseLabel, falseVar) <- getDepr
 
    -- wrcam z stanem do pierwszego
   setStore prevStore
-  -- put (prevEnv, prevVenv, prevStore, prevLoc, prevReg, prevLabel, prevVar)
+  -- putDepr (prevEnv, prevVenv, prevStore, prevLoc, prevReg, prevLabel, prevVar)
     
   labBase <- useLabel
   labTrue <- useLabel
@@ -184,24 +184,24 @@ compileStmt (CondElse _ expr stmt1 stmt2) = do
 compileStmt (While pos expr stmt) = do
 
   -- Zapisuje stan przed petla (przed body)
-  (prevEnv, prevVenv, prevStore, prevLoc, prevReg, prevLabel, prevVar) <- get
+  (prevEnv, prevVenv, prevStore, prevLoc, prevReg, prevLabel, prevVar) <- getDepr
 
   -- Update store -> nowe rejestry dla wszystkich zmiennych
   newRegisters -- jak powiedzmy x mialo r0 wczesniej to teraz ma r1 ale nie dodaje instrukcji przypisania
   
-  (updatedEnv, updatedVenv, updatedStore, updatedLoc, updatedReg, updatedLabel, updatedVar) <- get
+  (updatedEnv, updatedVenv, updatedStore, updatedLoc, updatedReg, updatedLabel, updatedVar) <- getDepr
 
   -- WYkonujemy expr warunku
   (exprResult, exprCode, exprType, strDeclarations1) <- complieExpression expr --tutaj powiedzmy x to r2
 
   -- zapisuje store po warunku
-  (condEnv, condVenv, condStore, condLoc, condReg, condLabel, condVar) <- get
+  (condEnv, condVenv, condStore, condLoc, condReg, condLabel, condVar) <- getDepr
   
   -- Wykonuje body
   (stmt1Res, strDeclarations) <- compileStmt stmt -- tu powiedzmy x to r3
 
   -- -- zapisuje store po body
-  (bodyEnv, bodyVenv, bodyStore, bodyLoc, bodyReg, bodyLabel, bodyVar) <- get
+  (bodyEnv, bodyVenv, bodyStore, bodyLoc, bodyReg, bodyLabel, bodyVar) <- getDepr
   
     
   labBase <- useLabel
