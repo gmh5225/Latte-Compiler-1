@@ -9,3 +9,4 @@ src/*.o
 latc_llvm
 latc
 .vscode
+more_tests

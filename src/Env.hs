@@ -67,10 +67,13 @@ setVarVal ident val = do
     let (Just (vtype, _)) = Map.lookup loc (sStore state)
     put state {sStore = Map.insert loc (vtype, val) (sStore state)}
 
-addProc :: CType -> Ident -> [CType] -> Compl ()
-addProc retType ident argsTypes = do
+getArgCType :: Arg -> CType
+getArgCType (Arg pos argType ident) = getCType argType
+
+addFunc :: TopDef -> Compl ()
+addFunc (FnDef pos retType ident args block) = do
   state <- get
-  put state {sPenv = Map.insert ident (CFun retType argsTypes) (sPenv state)}
+  put state {sPenv = Map.insert ident (CFun (getCType retType) (Prelude.map getArgCType args)) (sPenv state)}
 
 useNewReg :: Compl Register
 useNewReg = do

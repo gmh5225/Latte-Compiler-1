@@ -1,0 +1,18 @@
+###### Func scope ######
+
+void try_overwrite(int x){
+    int y = 20;
+    printInt(x);
+    x = 10;
+    printInt(x);
+}
+
+int main() {
+    int x;
+    int y = 3;
+    printInt(x);
+    try_overwrite(x);
+    printInt(x);
+    printInt(y);
+    return 0;
+}

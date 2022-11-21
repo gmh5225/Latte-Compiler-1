@@ -1,0 +1,35 @@
+###### Return values ######
+
+int getInt(){
+    int x = 10;
+    return x + 3 - 2*8;
+}
+
+boolean getBool(){
+    boolean x = false;
+    int y = 10;
+    return (y > 3) || x;
+}
+
+string getString(){
+    return "Hello";
+}
+
+int main() {
+    printInt(getInt());
+    printBool(getBool());
+    printString(getString());
+
+    return 0;
+}
+
+
+void printBool(boolean b) {
+  if (b) {
+    printString("true");
+    return;
+  } else {
+    printString("false");
+    return;
+ }
+}

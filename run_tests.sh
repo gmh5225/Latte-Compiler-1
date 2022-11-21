@@ -40,8 +40,6 @@ for filenameLat in $1/*.lat; do
 
     # printf "###### Running lli ${filenameNoExtension} ✅\n"
 
-
-
     diff "${filenameNoExtension}.output" tmp.output > diff.output 2>&1
 
     if [[ $? != 0 ]] 

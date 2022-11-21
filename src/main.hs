@@ -33,12 +33,11 @@ main = do
 
       case pProgram tokens of
         Right program -> do
-          -- putStrLn $ show program
           result <- runStaticAnallysis program
           case result of
             (Right text) -> do
               putStrLn "OK\n"
-              compilerResult <- compile program
+              compilerResult <- compileProgram program
               case compilerResult of
                 (Right generatedText) -> do
                   writeFile (outputDir ++ "/" ++ programName ++ ".ll") generatedText

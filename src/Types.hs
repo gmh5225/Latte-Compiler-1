@@ -56,6 +56,7 @@ data Val
   = IntV Integer
   | RegV Register
   | BoolV Bool
+  | VoidV
   deriving (Eq)
 
 instance Show Val where
