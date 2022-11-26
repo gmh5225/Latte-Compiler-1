@@ -10,6 +10,7 @@ data CType
   | CBool
   | CVoid
   | CFun CType [CType]
+  | CArray CType
   deriving (Eq)
 
 getCType :: Type -> CType
@@ -18,6 +19,7 @@ getCType (Str _)              = CStr
 getCType (Bool _)             = CBool
 getCType (Void _)             = CVoid
 getCType (Fun _ retType args) = CFun (getCType retType) (map getCType args)
+getCType (Array _ vtype)      = CArray (getCType vtype)
 
 instance Show CType where
   show CInt       = "i32"
@@ -25,6 +27,7 @@ instance Show CType where
   show CBool      = "i1"
   show CVoid      = "void"
   show (CFun _ _) = "function"
+  show (CArray vtype) = show vtype ++ "[]"
 
 typeToLLVM :: Type -> String
 typeToLLVM (Int _)              = "i32"

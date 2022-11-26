@@ -20,6 +20,7 @@ data CType
   | CBool
   | CVoid
   | CFun CType [CType]
+  | CArray CType
   deriving (Eq)
 
 getCType :: Type -> CType
@@ -28,6 +29,10 @@ getCType (Str _)              = CStr
 getCType (Bool _)             = CBool
 getCType (Void _)             = CVoid
 getCType (Fun _ retType args) = CFun (getCType retType) (map getCType args)
+getCType (Array _ vtype)      = CArray (getCType vtype)
+
+getArrType :: CType -> CType
+getArrType (CArray ctype) = ctype
 
 instance Show CType where
   show CInt       = "int"
@@ -35,6 +40,7 @@ instance Show CType where
   show CBool      = "bool"
   show CVoid      = "void"
   show (CFun _ _) = "function"
+  show (CArray vtype) = show vtype ++ "[]"
 
 --------------------------------------------
 type Env = (Map Ident (CType, Bool))
@@ -143,7 +149,7 @@ initVar p1 varType ((NoInit p2 ident):items) = do
   initVar p1 varType items
 initVar p1 varType ((Init p2 ident expr):items) = do
   addVar p1 varType ident
-  checkStmt CVoid (Ass p1 ident expr)
+  checkStmt CVoid (Ass p1 (LVar p1 ident) expr)
   initVar p1 varType items
 
 checkReturn :: [Stmt] -> CType -> Compl Bool
@@ -208,11 +214,17 @@ checkStmt retType (Decl pos (Void vPos) items) =
   printError vPos "Cannot declare variable of type void"
 checkStmt retType (Decl pos varType items) =
   initVar pos (getCType varType) items
-checkStmt retType (Ass pos ident expr) = do
+checkStmt retType (Ass pos (LVar p ident) expr) = do
   varType <- assertDecl pos ident
   assertExprType expr varType
-checkStmt retType (Incr pos ident) = assertVarType pos ident CInt
-checkStmt retType (Decr pos ident) = assertVarType pos ident CInt
+checkStmt retType (Ass pos (LAt p ident idxExpr) expr) = do
+  assertExprType idxExpr CInt
+  varType <- assertDecl pos ident
+  case varType of 
+    (CArray vtype) -> do assertExprType expr vtype
+    _ -> do printError pos $ show ident ++ " should be of type array [" ++ show varType
+checkStmt retType (Incr pos (LVar p ident)) = assertVarType pos ident CInt
+checkStmt retType (Decr pos (LVar p ident)) = assertVarType pos ident CInt
 checkStmt retType (Ret pos expr) = assertExprType expr retType
 checkStmt CVoid (VRet pos) = return ""
 checkStmt retType (VRet pos) =
@@ -230,13 +242,26 @@ checkStmt retType (While pos expr stmt) = do
 checkStmt retType (SExp pos expr) = do
   expType <- getExprType expr
   assertExprType expr expType
+checkStmt retType (ForEach p varType varIdent arrExpr stmt) = do
+  let block = BStmt p (Block p [(Decl p varType [(NoInit p varIdent)]),stmt])
+  exprType <- getExprType arrExpr
+  assertArray p exprType
+  let arrType = getArrType exprType
+  if arrType /= (getCType varType) 
+    then printError p $ "Foreach: variable should be of array's type" 
+    else checkStmt retType block
 
 checkIfIntOverflow :: Integer -> Pos -> Compl ()
 checkIfIntOverflow num pos =
   Control.Monad.when (num > 2147483647) $ printError pos "Integer overflow "
 
 getExprType :: Expr -> Compl CType
-getExprType (EVar pos ident) = assertDecl pos ident
+getExprType (ELValue pos1 (LVar pos2 ident)) = assertDecl pos1 ident
+getExprType (ELValue pos1 (LAt pos2 ident expr)) = do
+  atype <- assertDecl pos2 ident
+  assertArray pos2 atype
+  let (CArray vtype) = atype
+  return vtype
 getExprType (ELitInt pos num) = do
   checkIfIntOverflow num pos
   return CInt
@@ -253,9 +278,21 @@ getExprType (EString pos string) = return CStr
 getExprType (EApp pos ident exprs) = do
   (CFun retType args) <- assertDecl pos ident
   return retType
+getExprType (ENew pos vtype expr) = do
+  return $ CArray (getCType vtype)
+getExprType (ELength pos expr) = do
+  ctype <- (getExprType expr)
+  assertArray pos ctype
+  return CInt
 
 assertExprType :: Expr -> CType -> Compl Val
-assertExprType (EVar pos ident) exprType = assertVarType pos ident exprType
+assertExprType (ELValue pos1 (LVar pos2 ident)) expectedType = assertVarType pos1 ident expectedType  
+assertExprType (ELValue pos1 (LAt pos2 ident expr)) expectedType = do
+  assertExprType expr CInt
+  retType <- getExprType (ELValue pos1 (LAt pos2 ident expr))
+  if retType /= expectedType
+    then printError pos2 $ " should be of type " ++ show expectedType
+    else return ""
 assertExprType (ELitInt pos num) CInt = do
   checkIfIntOverflow num pos
   return ""
@@ -305,9 +342,20 @@ assertExprType (EApp pos ident exprs) expectedType = do
         else checkArgTypes pos argTypes exprs
     _ -> printError pos $ varName ++ " should be a function "
   return ""
+assertExprType (ENew pos vtype expr) expedtedType = do
+  if expedtedType /= (CArray $ getCType vtype)
+    then printError pos $ show expedtedType ++ " expected"
+    else assertExprType expr CInt 
+assertExprType (ELength pos expr) CInt = do
+  ctype <- (getExprType expr)
+  assertArray pos ctype 
 assertExprType expr expedtedType =
   printError (hasPosition expr) $
   "Expresion should be of type " ++ show expedtedType
+
+assertArray :: Pos -> CType -> Compl Val
+assertArray pos (CArray ctype) = return ""
+assertArray pos ctype = printError pos $ " expected array (Got "++ show ctype ++")"
 
 checkArgTypes :: Pos -> [CType] -> [Expr] -> Compl Val
 checkArgTypes pos [] [] = return ""
@@ -318,6 +366,19 @@ checkArgTypes pos [] exprs =
   printError pos $ " expected " ++ show (length exprs) ++ " less arguments"
 checkArgTypes pos args [] =
   printError pos $ " expected " ++ show (length args) ++ " more arguments"
+
+assertArrType :: Pos -> Ident -> CType -> Compl Val
+assertArrType pos ident expectedType = do
+  env <- get
+  let (Ident varName) = ident
+  case Map.lookup ident env of
+    (Just (varType, modif)) -> do
+      if varType == expectedType
+        then return ""
+        else printError pos $
+             "Variable" ++ varName ++ " should be of type " ++ show expectedType
+      return ""
+    Nothing -> printError pos $ varName ++ " is not declared"
 
 assertVarType :: Pos -> Ident -> CType -> Compl Val
 assertVarType pos ident expectedType = do
