@@ -27,7 +27,11 @@ instance Show CType where
   show CBool      = "i1"
   show CVoid      = "void"
   show (CFun _ _) = "function"
-  show (CArray vtype) = show vtype ++ "[]"
+  show (CArray vtype) = show vtype ++ "*"
+
+getArrValType :: CType -> CType
+getArrValType (CArray vtype) = vtype
+getArrValType vtype = vtype
 
 typeToLLVM :: Type -> String
 typeToLLVM (Int _)              = "i32"
@@ -71,6 +75,7 @@ data Val
   | RegV Register
   | BoolV Bool
   | VoidV
+  | ArrayV Val Register
   deriving (Eq)
 
 instance Show Val where
@@ -78,3 +83,4 @@ instance Show Val where
   show (RegV reg)    = show reg
   show (BoolV False) = "0"
   show (BoolV True)  = "1"
+  show (ArrayV val reg)  = show reg

@@ -123,8 +123,13 @@ getProc ident = do
 setLocVal :: Loc -> Val -> Compl ()
 setLocVal loc val = do
   state <- get
-  let (Just (vtype, _)) = Map.lookup loc (sStore state)
-  put state {sStore = Map.insert loc (vtype, val) (sStore state)}
+  let (Just (vtype, oldVal)) = Map.lookup loc (sStore state)
+  case oldVal of
+    (ArrayV levVal _) ->  put state {sStore = Map.insert loc (vtype, (ArrayV levVal (getRegFromVal val))) (sStore state)}
+    _ ->  put state {sStore = Map.insert loc (vtype, val) (sStore state)}
+
+getRegFromVal :: Val -> Register
+getRegFromVal (RegV reg) = reg
 
 storeToArray :: Store -> Compl StoreArray
 storeToArray store = do

@@ -131,17 +131,51 @@ compileStmt (BStmt _ (Block _ stmts)) = do
       , sLabel = sLabel newState
       }
   return (code, strDeclarations)
+compileStmt (Decl pos (Array p2 vtype) (item:items)) = do
+  let (Ident name) = getItemIdent item
+
+  -- init var tablicy
+  (c1,s1) <- initVar (CArray $ getCType vtype) [item]
+
+  -- init var len
+  (c2,s2) <- initVar CInt [(Init pos (Ident $ name ++ "_length") (getItemExpr item))]
+  
+  -- rest
+  (c3,s3) <-compileStmt (Decl pos (Array p2 vtype) items)
+  return (c1++c2++c3,s1++s2++s3)
+-- TODO
+compileStmt (Decl pos (Array p2 vtype) []) = return ("","")
 compileStmt (Decl pos varType items) = initVar (getCType varType) items
-compileStmt (Ass pos ident expr) = do
+compileStmt (Ass pos (LVar p ident) (ENew pos2 arrType sizeExpr)) = do
+  (val, code, _, strDeclarations) <- complieExpression (ENew pos2 arrType sizeExpr)
+  setVarVal ident val
+
+  let (Ident name) = ident
+  (c2,s2) <- initVar CInt [(Init pos (Ident $ name ++ "_length") sizeExpr)]
+  
+  return (code, strDeclarations)
+  -- TODO
+compileStmt (Ass pos (LVar p ident) expr) = do
   (val, code, _, strDeclarations) <- complieExpression expr
   setVarVal ident val
   return (code, strDeclarations)
-compileStmt (Incr pos ident) =
+compileStmt (Ass pos (LAt p ident idxExpr) expr) = do
+  (val, code, _, strDeclarations) <- complieExpression expr
+  (adrVal, adrCode, vtype, strDecl) <- getArrAdr (LAt p ident idxExpr)
+  let valCode = "store i32 " ++ show val ++ ", i32* " ++ show adrVal ++ "\n "
+  return (code ++ adrCode ++ valCode, strDeclarations ++ strDecl)
+compileStmt (Incr pos (LVar p ident)) =
   compileStmt
-    (Ass pos ident (EAdd pos (EVar pos ident) (Plus pos) (ELitInt pos 1)))
-compileStmt (Decr pos ident) =
+    (Ass
+       pos
+       (LVar p ident)
+       (EAdd pos (ELValue pos (LVar pos ident)) (Plus pos) (ELitInt pos 1)))
+compileStmt (Decr pos (LVar p ident)) =
   compileStmt
-    (Ass pos ident (EAdd pos (EVar pos ident) (Minus pos) (ELitInt pos 1)))
+    (Ass
+       pos
+       (LVar p ident)
+       (EAdd pos (ELValue pos (LVar pos ident)) (Minus pos) (ELitInt pos 1)))
 compileStmt (Ret pos expr) = do
   (val, code, exprType, strDeclarations) <- complieExpression expr
   case val of
@@ -237,6 +271,14 @@ compileStmt (SExp pos expr) = do
   (_, code, _, strDeclarations) <- complieExpression expr
   return (code, strDeclarations)
 
+getItemIdent :: Item -> Ident
+getItemIdent (NoInit _ ident) = ident
+getItemIdent (Init _ ident _) = ident
+
+getItemExpr :: Item -> Expr
+getItemExpr (NoInit p ident) = (ELitInt p 0)
+getItemExpr (Init p ident (ENew pos arrType sizeExpr)) = sizeExpr
+
 initVar :: CType -> [Item] -> Compl (LLVMCode, StrDeclarations)
 initVar varType [] = do
   return ("", "")
@@ -246,12 +288,48 @@ initVar CInt ((NoInit pos ident):items) =
   initVar CInt ((Init pos ident (ELitInt pos 0)) : items)
 initVar CBool ((NoInit pos ident):items) =
   initVar CBool ((Init pos ident (ELitFalse pos)) : items)
+initVar (CArray vtype) ((NoInit pos ident):items) = do
+  initVar (CArray vtype) ((Init pos ident (ELitInt pos 0)):items) 
+  -- let val = ArrayV (IntV 0) (Reg 0)
+  -- addVar (CArray vtype) ident
+  -- setVarVal ident val
+  -- (codes, strDeclarations2) <- initVar (CArray vtype) items
+  -- return (codes, strDeclarations2)
+initVar (CArray vtype) ((Init pos ident expr):items) = do
+  -- init zmienna length dla array ident
+  
+  -- TODO remove duplciated
+  let (ENew pos arrType sizeExpr) = expr
+  -- (sizeRes,sizeCode,_,sizeStr) <- complieExpression sizeExpr
+
+  --Liczymy rozmiar tablicy
+  (ArrayV sizeVal castedArrReg, code, _, strDeclarations1) <- complieExpression expr
+  -- Dodajemy pusta tablice
+  addVar (CArray vtype) ident
+  -- Inicjujemy tablice
+  setVarVal ident (ArrayV sizeVal castedArrReg)
+
+  
+  let (Ident name) = ident
+  --Dodaje zmienna length
+  addVar CInt (Ident $ name ++ "_length")
+  -- Ustwaiam jej kod
+  (lenCode, lenStr) <- compileStmt (Ass pos (LVar pos (Ident $ name ++ "_length")) sizeExpr)
+  -- setVarVal (Ident $ name ++ "_length") sizeVal
+  
+  -- (levVarCOde, lenVarStrDeclarations) <- initVar CInt (Init pos (Ident (ident++"length") expr))
+  
+  (codes, strDeclarations2) <- initVar (CArray vtype) items
+  return (code ++ lenCode++ codes, strDeclarations1 ++lenStr++ strDeclarations2)
+
 initVar varType ((Init pos ident expr):items) = do
   (val, code, _, strDeclarations1) <- complieExpression expr
   addVar varType ident
   setVarVal ident val
   (codes, strDeclarations2) <- initVar varType items
   return (code ++ codes, strDeclarations1 ++ strDeclarations2)
+initVar varType (item:items) = do
+  return (show item, show item)
 
 complieExpression :: Expr -> Compl ExpressionResult
 complieExpression (EAdd pos e1 (Plus posOp) e2) =
@@ -268,9 +346,15 @@ complieExpression (ERel pos e1 op e2) = complieCmpExpression e1 e2 op
 complieExpression (ELitTrue pos) = return (BoolV True, "", CBool, "")
 complieExpression (ELitFalse pos) = return (BoolV False, "", CBool, "")
 complieExpression (ELitInt pos num) = return (IntV num, "", CInt, "")
-complieExpression (EVar pos ident) = do
+complieExpression (ELValue pos (LVar pos2 ident)) = do
   (vtype, val) <- getVar ident
   return (val, "", vtype, "")
+complieExpression (ELValue pos1 (LAt pos2 ident expr)) = do
+  (adrVal, code, vtype, strDecl) <- getArrAdr (LAt pos2 ident expr)
+  let (RegV reg) = adrVal
+  valReg <- useNewReg
+  let getCode = show valReg ++ " = load i32, i32* " ++ show reg ++ "\n"
+  return (RegV valReg, code ++ getCode, getArrValType vtype, strDecl)
 complieExpression (EApp pos (Ident name) exprs) = do
   (argStr, compileStr, strDeclarations) <- compileArgsExpr exprs
   (retType, argsTypes) <- getProc $ Ident name
@@ -323,18 +407,75 @@ complieExpression (Not pos expr) = do
         , strDeclarations)
 complieExpression (EAnd pos e1 e2) = complieAndOr "and" pos e1 e2
 complieExpression (EOr pos e1 e2) = complieAndOr "or" pos e1 e2
+complieExpression (ENew pos arrType sizeExpr) = do
+  (sizeVal, exprCode, _, strDeclarations) <- complieExpression sizeExpr
+  
+  -- setVarVal ident (ArrayV sizeVal castedArrReg)
+  -- (c1,s1) <- initVar CInt [(Init pos (Ident $ name ++ "_length") (getItemExpr item))]
+
+  -- TODO
+  -- sizeReg <- useNewReg
+  -- let sizeCode = show sizeReg ++ " = i32 " ++ show sizeVal ++ "\n";?
+
+
+  -- set lenghval 
+
+  arrReg <- useNewReg
+  castedArrReg <- useNewReg
+  let code =
+        show arrReg ++
+        " = call i8* @malloc(" ++
+        show (getCType arrType) ++
+        " " ++
+        show sizeVal ++
+        ")\n" ++
+        show castedArrReg ++
+        " = bitcast i8* " ++
+        show arrReg ++ " to " ++ show (getCType arrType) ++ "*\n"
+  return (ArrayV sizeVal castedArrReg, exprCode ++ code, CArray $ getCType arrType, strDeclarations)
+complieExpression (ELength pos (ELValue p2 (LVar p3 arrIdent))) = do
+  (vtype, val) <- getVar arrIdent
+  -- let (ArrayV len reg) = val
+
+  let (Ident name) = arrIdent
+  (vtype, val) <- getVar (Ident $ name ++ "_length")
+
+  return (val, "", CInt, "")
+  -- let (ArrayV len reg) = val
+  -- return (IntV 0, "||||" ++ show val ++ "||||", CInt, "")
+
+
+getArrAdr :: LValue -> Compl ExpressionResult
+getArrAdr (LAt pos ident idxExpr) = do
+  (idxVal, idxCode, idxType, idxStrDecl) <- complieExpression idxExpr
+  (vtype, arrReg) <- getVar ident
+  adrReg <- useNewReg
+  -- valReg <- useNewReg
+  -- TODO String bool etc...
+  let code =
+        show adrReg ++
+        " = getelementptr i32,i32* " ++
+        show arrReg ++ ", i32 " ++ show idxVal ++ "\n"
+        -- show valReg ++ " = load i32, i32* " ++ show adrReg ++ "\n"
+  return (RegV adrReg, idxCode ++ code, getArrValType vtype, idxStrDecl)
 
 complieAndOr :: String -> Pos -> Expr -> Expr -> Compl ExpressionResult
 complieAndOr f pos e1 e2 = do
   (Reg num) <- useNewReg
   let ident = Ident $ "log_op" ++ show num
   (varText, sd1) <- initVar CBool [Init pos ident (ELitTrue pos)]
-  (setVarToE1Code, sd2) <- compileStmt (Ass pos ident e1)
+  (setVarToE1Code, sd2) <- compileStmt (Ass pos (LVar pos ident) e1)
   (code, sd) <-
     compileStmt
       (if f == "or" --type insted of string?
-         then (Cond pos (Not pos (EVar pos ident)) (Ass pos ident e2))
-         else (Cond pos (EVar pos ident) (Ass pos ident e2)))
+         then (Cond
+                 pos
+                 (Not pos (ELValue pos (LVar pos ident)))
+                 (Ass pos (LVar pos ident) e2))
+         else (Cond
+                 pos
+                 (ELValue pos (LVar pos ident))
+                 (Ass pos (LVar pos ident) e2)))
   (_, resVal) <- getVar ident
   return (resVal, varText ++ setVarToE1Code ++ code, CBool, sd1 ++ sd2 ++ sd)
 
