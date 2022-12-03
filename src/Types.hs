@@ -31,7 +31,7 @@ typeToLLVM (Int _)              = "i32"
 typeToLLVM (Str _)              = "i8*"
 typeToLLVM (Bool _)             = "i1"
 typeToLLVM (Void _)             = "void"
-typeToLLVM (Fun _ retType args) = "todo"
+typeToLLVM (Fun _ retType args) = "function"
 
 data Register =
   Reg Int
@@ -75,3 +75,12 @@ instance Show Val where
   show (RegV reg)    = show reg
   show (BoolV False) = "0"
   show (BoolV True)  = "1"
+
+data LogicalOperator
+  = LOr
+  | LAnd
+  deriving (Eq)
+
+instance Show LogicalOperator where
+  show LOr  = "or"
+  show LAnd = "and"

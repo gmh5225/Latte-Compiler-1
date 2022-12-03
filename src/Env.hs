@@ -136,8 +136,7 @@ storeToArray store = do
 generatePhi :: Store -> Store -> Store -> Label -> Label -> Compl String
 generatePhi pStore tStore fStore endTrue endFalse = do
   pArr <- storeToArray pStore
-  result <- mapPhi pArr tStore fStore endTrue endFalse
-  return result
+  mapPhi pArr tStore fStore endTrue endFalse
 
 mapPhi :: StoreArray -> Store -> Store -> Label -> Label -> Compl String
 mapPhi [] tStore fStore endTrue endFalse = return ""
@@ -176,8 +175,7 @@ newRegister ((vloc, (ctype, val)):arr) = do
 generate3Phi :: Store -> Store -> Store -> Label -> Label -> Compl String
 generate3Phi updatedStore store1 store2 label1 label2 = do
   pArr <- storeToArray updatedStore
-  result <- map3Phi store1 store2 pArr label1 label2
-  return result
+  map3Phi store1 store2 pArr label1 label2
 
 map3Phi :: Store -> Store -> StoreArray -> Label -> Label -> Compl String
 map3Phi store1 store2 [] label1 label2 = return ""
