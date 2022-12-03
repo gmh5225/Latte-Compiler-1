@@ -35,3 +35,5 @@ funcDeclarations =
         ++ "declare i32 @scanf(i8*, ...)\n"
         ++ "declare void @error()\n"
         ++ "declare i8* @concat(i8* %s1, i8* %s2)\n"
+        ++ "declare void @realloc(i8*, i32)\n"
+        ++ "declare void @free(i8*)\n\n\n"
