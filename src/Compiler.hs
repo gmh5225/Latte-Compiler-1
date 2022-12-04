@@ -52,6 +52,7 @@ compileFuncDefs (def : defs) = do
 
 compileFuncDef :: TopDef -> Compl LLVMCode
 compileFuncDef (FnDef _ retType (Ident name) args block) = do
+  let ctype = getCType retType
   prevState                <- get
   (argsCode, initArgsCode) <- compileArgs args
   blockCode                <- compileBlock block
@@ -62,9 +63,8 @@ compileFuncDef (FnDef _ retType (Ident name) args block) = do
                , sStore = sStore prevState
                }
   let blockCore =
-        -- strDeclarations ++
         "\ndefine "
-          ++ typeToLLVM retType
+          ++ show ctype
           ++ " @"
           ++ name
           ++ "("
@@ -73,11 +73,11 @@ compileFuncDef (FnDef _ retType (Ident name) args block) = do
           ++ initArgsCode
           ++ "\n"
           ++ blockCode
-  case retType of
-    Void _ -> return $ blockCore ++ "ret void\n}\n"
-    Str _ ->
-      return $ blockCore ++ "%_ = call i8* @malloc(i32 1)\n ret i8* %_\n\n}\n"
-    _ -> return $ blockCore ++ "ret " ++ typeToLLVM retType ++ " 0\n}\n"
+
+  case ctype of
+    CVoid -> return $ blockCore ++ show RetVoidI ++ "}\n"
+    CStr  -> return $ blockCore ++ show RetDummyStrI ++ "}\n"
+    _     -> return $ blockCore ++ show (RetDummyI ctype) ++ "}\n"
 
 compileArgs :: [Arg] -> Compl (ArgsCode, InitArgsCode)
 compileArgs []                      = return ("", "")
@@ -247,44 +247,16 @@ complieExpr (EApp pos (Ident name) exprs) = do
   (retType, argsTypes ) <- getProc $ Ident name
   reg                   <- useNewReg
   case retType of
-    CVoid -> return
-      ( RegV reg
-      , compileStr ++ "call void @" ++ name ++ "(" ++ argStr ++ ")\n"
-      , CVoid
-      )
+    CVoid ->
+      return (RegV reg, compileStr ++ show (CallVoidI name argStr), CVoid)
     _ -> return
-      ( RegV reg
-      , compileStr
-      ++ show reg
-      ++ " = call "
-      ++ show retType
-      ++ " @"
-      ++ name
-      ++ "("
-      ++ argStr
-      ++ ")\n"
-      , retType
-      )
+      (RegV reg, compileStr ++ show (CallI reg retType name argStr), retType)
 complieExpr (EString pos str) = do
   reg <- useNewReg
   let (Reg num) = reg
   let len       = length str + 1
-  let asignCode =
-        show reg
-          ++ " = bitcast ["
-          ++ show len
-          ++ " x i8]* @s"
-          ++ show num
-          ++ " to i8*\n"
-  let strDeclarations =
-        "@s"
-          ++ show num
-          ++ " = private constant ["
-          ++ show len
-          ++ " x i8] c\""
-          ++ prepString str
-          ++ "\\00\"\n"
-  addString strDeclarations
+  let asignCode = show (CastStrI reg len num)
+  addString $ show (ConstI num len str)
   return (RegV reg, asignCode, CStr)
 complieExpr (Neg p expr) = complieExpr (EAdd p (ELitInt p 0) (Minus p) expr)
 complieExpr (Not _ expr) = do

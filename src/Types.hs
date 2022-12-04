@@ -13,10 +13,10 @@ data CType
   deriving (Eq)
 
 getCType :: Type -> CType
-getCType (Int _)              = CInt
-getCType (Str _)              = CStr
-getCType (Bool _)             = CBool
-getCType (Void _)             = CVoid
+getCType (Int  _            ) = CInt
+getCType (Str  _            ) = CStr
+getCType (Bool _            ) = CBool
+getCType (Void _            ) = CVoid
 getCType (Fun _ retType args) = CFun (getCType retType) (map getCType args)
 
 instance Show CType where
@@ -26,16 +26,9 @@ instance Show CType where
   show CVoid      = "void"
   show (CFun _ _) = "function"
 
-typeToLLVM :: Type -> String
-typeToLLVM (Int _)              = "i32"
-typeToLLVM (Str _)              = "i8*"
-typeToLLVM (Bool _)             = "i1"
-typeToLLVM (Void _)             = "void"
-typeToLLVM (Fun _ retType args) = "function"
-
-data Register =
-  Reg Int
-  deriving (Eq)
+newtype Register
+  = Reg Int
+  deriving Eq
 
 instance Show Register where
   show (Reg num) = "%r" ++ show num
@@ -43,9 +36,9 @@ instance Show Register where
 nextReg :: Register -> Register
 nextReg (Reg num) = Reg $ num + 1
 
-data Var =
-  Var Int
-  deriving (Eq)
+newtype Var
+  = Var Int
+  deriving Eq
 
 instance Show Var where
   show (Var num) = "%var" ++ show num
@@ -53,9 +46,9 @@ instance Show Var where
 nextVar :: Var -> Var
 nextVar (Var num) = Var $ num + 1
 
-data Label =
-  Lab Int
-  deriving (Eq)
+newtype Label
+  = Lab Int
+  deriving Eq
 
 instance Show Label where
   show (Lab num) = "L_" ++ show num
@@ -71,10 +64,11 @@ data Val
   deriving (Eq)
 
 instance Show Val where
-  show (IntV i)      = show i
-  show (RegV reg)    = show reg
+  show (IntV  i    ) = show i
+  show (RegV  reg  ) = show reg
   show (BoolV False) = "0"
-  show (BoolV True)  = "1"
+  show (BoolV True ) = "1"
+  show VoidV         = ""
 
 data LogicalOperator
   = LOr

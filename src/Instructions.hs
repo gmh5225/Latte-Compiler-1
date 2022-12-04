@@ -9,6 +9,7 @@ import           Data.Map                      as Map
 import           Distribution.Simple            ( VersionInterval )
 import           Latte.Abs
 import           Types
+import           Utils
 
 data Instruction
   = ArtI Register ArtOp Val Val
@@ -23,10 +24,38 @@ data Instruction
   | SetRegister Register CType Register
   | BoolI Register BoolOp Val Val
   | RetI CType Register
+  | CastStrI Register Int Int
+  | ConstI Int Int String
   | VRetI
+  | CallVoidI String String
+  | CallI Register CType String String
+  | RetVoidI
+  | RetDummyStrI
+  | RetDummyI CType
   deriving (Eq)
 
 instance Show Instruction where
+  show RetVoidI          = "ret void\n"
+  show RetDummyStrI      = "%_ = inttoptr i32 0 to i8*\n ret i8* %_\n"
+  show (RetDummyI ctype) = "ret " ++ show ctype ++ " 0\n"
+  show (CallI reg ctype name args) =
+    show reg ++ " = call " ++ show ctype ++ " @" ++ name ++ "(" ++ args ++ ")\n"
+  show (CallVoidI name args) = "call void @" ++ name ++ "(" ++ args ++ ")\n"
+  show (ConstI n len str) =
+    "@s"
+      ++ show n
+      ++ " = private constant ["
+      ++ show len
+      ++ " x i8] c\""
+      ++ prepString str
+      ++ "\\00\"\n"
+  show (CastStrI reg len n) =
+    show reg
+      ++ " = bitcast ["
+      ++ show len
+      ++ " x i8]* @s"
+      ++ show n
+      ++ " to i8*\n"
   show (ArtI register operator value1 value2) =
     show register
       ++ " = "
