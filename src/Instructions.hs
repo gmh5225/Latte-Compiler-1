@@ -16,14 +16,15 @@ data Instruction
   | CompareInstruction Register RelOp CType Val Val
   | BrI Val Label Label
   | JmpI Label
-  | IfElseI Val Label Label Label Label String String Label Label
+  | IfElseI Val Label Label Label String String
+  | WhileI Val String Label Label Label String
   | AddV Var CType
   | InitI Var CType
-  | GetV Register CType Register
-  | SetV Var CType Register
+  | GetV Var CType Register
+  | SetV Var CType Val
   | SetRegister Register CType Register
   | BoolI Register BoolOp Val Val
-  | RetI CType Register
+  | RetI CType Val
   | CastStrI Register Int Int
   | ConstI Int Int String
   | VRetI
@@ -87,28 +88,20 @@ instance Show Instruction where
       ++ show label2
       ++ "\n"
   show (JmpI label) = "br label %" ++ show label ++ "\n"
-  show (IfElseI exprReg lBase lTrue lFalse lEnd trueCode falseCode endTrue endFalse)
-    = show (JmpI lBase)
-      ++ show lBase
-      ++ ":\n"
-      ++ show (BrI exprReg lTrue lFalse)
+  show (IfElseI exprReg lTrue lFalse lEnd trueCode falseCode) =
+    show (BrI exprReg lTrue lFalse)
       ++ show lTrue
       ++ ": \n"
       ++ trueCode
-      ++ show (JmpI endTrue)
-      ++ show endTrue
-      ++ ":\n"
       ++ show (JmpI lEnd)
       ++ show lFalse
       ++ ":\n"
       ++ falseCode
-      ++ show (JmpI endFalse)
-      ++ show endFalse
-      ++ ":\n"
       ++ show (JmpI lEnd)
       ++ show lEnd
       ++ ":\n"
   show (AddV var ctype) = show var ++ " = alloca " ++ show ctype ++ "\n"
+
   show (InitI var ctype) =
     "store " ++ show ctype ++ " 0, " ++ show ctype ++ "* " ++ show var ++ "\n"
   show (GetV reg ctype resultReg) =
@@ -134,8 +127,21 @@ instance Show Instruction where
     show resultReg ++ " = " ++ show ctype ++ " " ++ show exprReg ++ "\n"
   show (BoolI reg op v1 v2) =
     show reg ++ " = " ++ show op ++ " i1 " ++ show v1 ++ ", " ++ show v2 ++ "\n"
-  show (RetI ctype reg) = "ret " ++ show ctype ++ " " ++ show reg ++ "\n"
-  show VRetI            = "ret void\n"
+  show (RetI ctype v) = "ret " ++ show ctype ++ " " ++ show v ++ "\n"
+  show VRetI          = "ret void\n"
+  show (WhileI exprReg exprCode lStart lTrue lEnd code) =
+    show (JmpI lStart)
+      ++ show lStart
+      ++ ": \n"
+      ++ exprCode
+      ++ show (BrI exprReg lTrue lEnd)
+      ++ show lTrue
+      ++ ":\n"
+      ++ code
+      ++ show (JmpI lStart)
+      ++ show lEnd
+      ++ ": \n"
+
 
 data BoolOp
   = AndOp

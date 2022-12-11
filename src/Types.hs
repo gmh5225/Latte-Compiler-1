@@ -59,6 +59,7 @@ nextLabel (Lab num) = Lab $ num + 1
 data Val
   = IntV Integer
   | RegV Register
+  | VarV Var
   | BoolV Bool
   | VoidV
   deriving (Eq)
@@ -66,6 +67,7 @@ data Val
 instance Show Val where
   show (IntV  i    ) = show i
   show (RegV  reg  ) = show reg
+  show (VarV  v    ) = show v
   show (BoolV False) = "0"
   show (BoolV True ) = "1"
   show VoidV         = ""
