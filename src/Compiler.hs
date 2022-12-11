@@ -120,7 +120,7 @@ compileStmt (BStmt _ (Block _ stmts)) = do
 compileStmt (Decl pos varType items) = initVar (getCType varType) items
 compileStmt (Ass  pos ident   expr ) = do
   (exprReg, exprCode, _) <- compileExpr expr
-  (varType, VarV var)    <- getVar ident
+  (varType, var)    <- getVar ident
   return (exprCode ++ show (SetV var varType exprReg))
 compileStmt (Incr pos ident) = compileStmt
   (Ass pos ident (EAdd pos (EVar pos ident) (Plus pos) (ELitInt pos 1)))
@@ -214,12 +214,9 @@ compileExpr (ELitInt pos num) = do
     , CInt
     )
 compileExpr (EVar pos ident) = do
-  (vtype, val) <- getVar ident
-  case val of
-    VarV v -> do
-      reg <- useNewReg
-      return (RegV reg, show (GetV v vtype reg), vtype)
-    _ -> return (val, "", vtype)
+  (vtype, var) <- getVar ident
+  reg <- useNewReg
+  return (RegV reg, show (GetV var vtype reg), vtype)
 compileExpr (EApp pos (Ident name) exprs) = do
   (argStr , compileStr) <- compileArgsExpr exprs
   (retType, argsTypes ) <- getProc $ Ident name

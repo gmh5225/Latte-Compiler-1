@@ -15,7 +15,7 @@ type VEnv = Map Ident Loc
 
 type PEnv = Map Ident CType
 
-type Store = Map Loc (CType, Val)
+type Store = Map Loc (CType, Var)
 
 data Env = Env
   { sPenv     :: PEnv
@@ -67,18 +67,18 @@ addVar varType ident = do
   let var   = sVar state
 
   put state { sVenv  = Map.insert ident loc venv
-            , sStore = Map.insert loc (varType, VarV var) store
+            , sStore = Map.insert loc (varType, var) store
             , sLoc   = loc + 1
             , sVar   = nextVar var
             }
   return var
 
-setVarVal :: Ident -> Val -> Compl ()
-setVarVal ident val = do
+setVarVal :: Ident -> Var -> Compl ()
+setVarVal ident var = do
   state <- get
   let (Just loc)        = Map.lookup ident (sVenv state)
   let (Just (vtype, _)) = Map.lookup loc (sStore state)
-  put state { sStore = Map.insert loc (vtype, val) (sStore state) }
+  put state { sStore = Map.insert loc (vtype, var) (sStore state) }
 
 getArgCType :: Arg -> CType
 getArgCType (Arg pos argType ident) = getCType argType
@@ -105,7 +105,7 @@ useLabel = do
   put state { sLabel = nextLabel (sLabel state) }
   return $ sLabel state
 
-getVar :: Ident -> Compl (CType, Val)
+getVar :: Ident -> Compl (CType, Var)
 getVar ident = do
   state <- get
   let (Just loc)    = Map.lookup ident $ sVenv state
