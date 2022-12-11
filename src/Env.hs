@@ -17,8 +17,6 @@ type PEnv = Map Ident CType
 
 type Store = Map Loc (CType, Val)
 
-type StoreArray = [(Loc, (CType, Val))]
-
 data Env = Env
   { sPenv     :: PEnv
   , sVenv     :: VEnv

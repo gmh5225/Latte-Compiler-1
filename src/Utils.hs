@@ -6,22 +6,44 @@ import           Latte.Abs
 import           Numeric
 import           Types
 
+{- Map string to llvm-const form
+    Params:
+      string to map
+-}
 prepString :: [Char] -> [Char]
-prepString (c : str) = "\\" ++ pref (showHex (ord c) "") ++ prepString str
 prepString []        = ""
+prepString (c : str) = "\\" ++ pref (showHex (ord c) "") ++ prepString str
+  where
+    pref :: String -> String
+    pref str | length str > 1 = str
+             | otherwise      = "0" ++ str
 
-pref :: String -> String
-pref str | length str > 1 = str
-         | otherwise      = "0" ++ str
-
+{- Get unique variable name (for cmp expr) -}
 logicalCmpVar :: Compl Ident
 logicalCmpVar = do
     (Reg num) <- useNewReg
     let ident = Ident $ "_logical_cmp_" ++ show num
     return ident
 
-funcDeclarations :: String
-funcDeclarations =
+{- Add indention before every line
+    Params:
+      string 
+-}
+tab :: String -> String
+tab s = indention ++ tabH s
+  where
+    tabH :: String -> String
+    tabH []            = []
+    tabH ('\n' : rest) = "\n" ++ indention ++ tabH rest
+    tabH (char : rest) = char : tabH rest
+
+    indention :: String
+    indention = "    "
+
+
+{- Get string with build-in functions declarations -}
+builtinFuncDeclarations :: String
+builtinFuncDeclarations =
     "declare i32 @puts(i8*)\n"
         ++ "declare i8* @readString()\n"
         ++ "declare i32 @readInt()\n"

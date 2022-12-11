@@ -21,20 +21,12 @@ type ArgsCode = String
 
 type InitArgsCode = String
 
-getT :: String -> String
-getT s = [' ', ' ', ' ', ' '] ++ (tab s)
-
-tab :: String -> String
-tab []            = []
-tab ('\n' : rest) = ['\n', ' ', ' ', ' ', ' '] ++ tab rest
-tab (a    : r   ) = a : (tab r)
-
 compileProgram :: Program -> IO (Either Error String)
 compileProgram program = do
   result <- runStateT (runExceptT (complieTopDefs program)) initEnv
   case fst result of
     (Left  error) -> return $ Left error
-    (Right code ) -> return $ Right (funcDeclarations ++ code)
+    (Right code ) -> return $ Right (builtinFuncDeclarations ++ code)
 
 complieTopDefs :: Program -> Compl LLVMCode
 complieTopDefs (Program _ defs) = do
@@ -90,9 +82,9 @@ compileArgs :: [Arg] -> Compl (ArgsCode, InitArgsCode)
 compileArgs [] = do
   return ("", "")
 compileArgs [Arg pos argType ident] = do
-  reg        <- useNewReg
-  (initCode) <- initVar (getCType argType) [NoInit pos ident]
-  var        <- lastVar
+  reg      <- useNewReg
+  initCode <- initVar (getCType argType) [NoInit pos ident]
+  var      <- lastVar
   return
     ( show (getCType argType) ++ " " ++ show reg
     , initCode ++ show (SetV var (getCType argType) (RegV reg))
@@ -158,15 +150,8 @@ compileStmt (CondElse _ expr          stmt1 stmt2) = do
   labFalse                      <- useLabel
   labEnd                        <- useLabel
   return
-    (  exprCode
-    ++ show
-         (IfElseI exprReg
-                  labTrue
-                  labFalse
-                  labEnd
-                  (getT stmt1Res)
-                  (getT stmt2Res)
-         )
+    (exprCode ++ show
+      (IfElseI exprReg labTrue labFalse labEnd (tab stmt1Res) (tab stmt2Res))
     )
 compileStmt (While pos expr stmt) = do
   (exprReg, exprCode, exprType) <- compileExpr expr
@@ -174,7 +159,7 @@ compileStmt (While pos expr stmt) = do
   labCheck                      <- useLabel
   labTrue                       <- useLabel
   labEnd                        <- useLabel
-  return (show (WhileI exprReg exprCode labCheck labTrue labEnd (getT stmtRes)))
+  return (show (WhileI exprReg exprCode labCheck labTrue labEnd (tab stmtRes)))
 compileStmt (SExp pos expr) = do
   (_, code, _) <- compileExpr expr
   return code
@@ -283,6 +268,13 @@ compileExpr (Not _ expr  ) = do
         )
     other -> return (other, code, CBool)
 
+{- complie arguments of EApp
+    Params:
+      arguments' expressions
+    Returns:
+      arguments' string
+      code
+-}
 compileArgsExpr :: [Expr] -> Compl (String, LLVMCode)
 compileArgsExpr []     = return ("", "")
 compileArgsExpr [expr] = do
@@ -336,7 +328,6 @@ complieCmpExpr e1 e2 operator = do
     , CBool
     )
 
-
 {- Complie and/or expresion
     Params:
       Operator string
@@ -354,6 +345,5 @@ complieAndOr e1 operator e2 = do
       then Cond pos (Not pos (EVar pos ident)) (Ass pos ident e2)
       else Cond pos (EVar pos ident) (Ass pos ident e2)
     )
-  -- (_, resVal) <- getVar ident
   (v, code, _) <- compileExpr (EVar pos ident)
   return (v, initVarCode ++ setVarToE1Code ++ setVarToE2Code ++ code, CBool)

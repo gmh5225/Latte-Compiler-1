@@ -22,13 +22,11 @@ data Instruction
   | InitI Var CType
   | GetV Var CType Register
   | SetV Var CType Val
-  | SetRegister Register CType Register
   | BoolI Register BoolOp Val Val
   | RetI CType Val
   | CastStrI Register Int Int
   | ConstI Int Int String
   | VRetI
-  | CallVoidI String String
   | CallI Register CType String String
   | RetVoidI
   | RetDummyStrI
@@ -41,7 +39,6 @@ instance Show Instruction where
   show (RetDummyI ctype) = "ret " ++ show ctype ++ " 0\n"
   show (CallI reg ctype name args) =
     show reg ++ " = call " ++ show ctype ++ " @" ++ name ++ "(" ++ args ++ ")\n"
-  show (CallVoidI name args) = "call void @" ++ name ++ "(" ++ args ++ ")\n"
   show (ConstI n len str) =
     "@s"
       ++ show n
@@ -123,8 +120,6 @@ instance Show Instruction where
       ++ "* "
       ++ show var
       ++ "\n"
-  show (SetRegister resultReg ctype exprReg) =
-    show resultReg ++ " = " ++ show ctype ++ " " ++ show exprReg ++ "\n"
   show (BoolI reg op v1 v2) =
     show reg ++ " = " ++ show op ++ " i1 " ++ show v1 ++ ", " ++ show v2 ++ "\n"
   show (RetI ctype v) = "ret " ++ show ctype ++ " " ++ show v ++ "\n"
