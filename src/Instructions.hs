@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module Instructions where
 
@@ -19,9 +20,11 @@ data Instruction
   | IfElseI Val Label Label Label String String
   | WhileI Val String Label Label Label String
   | AddV Var CType
+  | AddClassI String Var CType
   | InitI Var CType
   | GetV Var CType Register
   | SetV Var CType Val
+  | SetFieldI Register Ident Val Integer Val CType
   | BoolI Register BoolOp Val Val
   | RetI CType Val
   | CastStrI Register Int Int
@@ -33,7 +36,52 @@ data Instruction
   | RetDummyI CType
   deriving (Eq)
 
+-- reg = getelementptr %name, %name* val, i32 num
+-- store ctype val, ctype* reg
+
 instance Show Instruction where
+  show :: Instruction -> String
+  show (AddClassI tmp v (CClass (Ident name) _)) =
+    "\n;--- Struct ["
+      ++ name
+      ++ "] declaration ---\n"
+      ++ "%"
+      ++ tmp
+      ++ " = alloca %"
+      ++ name
+      ++ "\n"
+      ++ show v
+      ++ " = alloca %"
+      ++ name
+      ++ "*\n"
+      ++ "store %"
+      ++ name
+      ++ "* %"
+      ++ tmp
+      ++ ", %"
+      ++ name
+      ++ "** "
+      ++ show v
+      ++ "\n;--- End of struct declaration ---\n\n"
+  show (AddClassI tmp v _) = ""
+  show (SetFieldI reg (Ident name) objVal num aVal aType) =
+    show reg
+      ++ "= getelementptr %"
+      ++ name
+      ++ ", %"
+      ++ name
+      ++ "* "
+      ++ show objVal
+      ++ ",  i32 0, i32 "
+      ++ show num
+      ++ "\nstore "
+      ++ show aType
+      ++ " "
+      ++ show aVal
+      ++ ", "
+      ++ show aType
+      ++ "* "
+      ++ show reg
   show RetVoidI          = "ret void\n"
   show RetDummyStrI      = "%_ = inttoptr i32 0 to i8*\n ret i8* %_\n"
   show (RetDummyI ctype) = "ret " ++ show ctype ++ " 0\n"
@@ -97,10 +145,21 @@ instance Show Instruction where
       ++ show (JmpI lEnd)
       ++ show lEnd
       ++ ":\n"
+  show (AddV var (CClass (Ident name) _)) =
+    show var ++ " = alloca %" ++ name ++ "\n"
   show (AddV var ctype) = show var ++ " = alloca " ++ show ctype ++ "\n"
 
   show (InitI var ctype) =
     "store " ++ show ctype ++ " 0, " ++ show ctype ++ "* " ++ show var ++ "\n"
+  -- show (GetV reg (CClass (Ident name) _) resultReg) =
+  --   show resultReg
+  --     ++ " = load %"
+  --     ++ name
+  --     ++ ", %"
+  --     ++ name
+  --     ++ "* "
+  --     ++ show reg
+  --     ++ "\n"
   show (GetV reg ctype resultReg) =
     show resultReg
       ++ " = load "
@@ -110,6 +169,9 @@ instance Show Instruction where
       ++ "* "
       ++ show reg
       ++ "\n"
+  -- show (SetC reg var (CClass (Ident name) fields) reg) =
+  --   show reg ++ " = load %"++name++"*,%"++name++"** "++show var++
+  --   "\nstore %"++name++"* %r10, %"++name++"** %var1"
   show (SetV var ctype reg) =
     "store "
       ++ show ctype

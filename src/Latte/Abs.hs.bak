@@ -45,7 +45,7 @@ data Stmt' a
     = Empty a
     | BStmt a (Block' a)
     | Decl a (Type' a) [Item' a]
-    | Ass a (LValue' a) (Expr' a)
+    | Ass a Ident (Expr' a)
     | Incr a Ident
     | Decr a Ident
     | Ret a (Expr' a)
@@ -60,10 +60,6 @@ type Item = Item' BNFC'Position
 data Item' a = NoInit a Ident | Init a Ident (Expr' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
 
-type LValue = LValue' BNFC'Position
-data LValue' a = LVar a Ident | LSField a (Expr' a) Ident
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
-
 type Type = Type' BNFC'Position
 data Type' a
     = Class a Ident
@@ -76,12 +72,10 @@ data Type' a
 
 type Expr = Expr' BNFC'Position
 data Expr' a
-    = EVar a (LValue' a)
+    = EVar a Ident
     | ELitInt a Integer
     | ELitTrue a
     | ELitFalse a
-    | EStruct a Ident
-    | ENull a Ident
     | EApp a Ident [Expr' a]
     | EString a String
     | Neg a (Expr' a)
@@ -164,11 +158,6 @@ instance HasPosition Item where
     NoInit p _ -> p
     Init p _ _ -> p
 
-instance HasPosition LValue where
-  hasPosition = \case
-    LVar p _ -> p
-    LSField p _ _ -> p
-
 instance HasPosition Type where
   hasPosition = \case
     Class p _ -> p
@@ -184,8 +173,6 @@ instance HasPosition Expr where
     ELitInt p _ -> p
     ELitTrue p -> p
     ELitFalse p -> p
-    EStruct p _ -> p
-    ENull p _ -> p
     EApp p _ _ -> p
     EString p _ -> p
     Neg p _ -> p

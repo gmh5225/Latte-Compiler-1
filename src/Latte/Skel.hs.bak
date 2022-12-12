@@ -45,7 +45,7 @@ transStmt x = case x of
   Latte.Abs.Empty _ -> failure x
   Latte.Abs.BStmt _ block -> failure x
   Latte.Abs.Decl _ type_ items -> failure x
-  Latte.Abs.Ass _ lvalue expr -> failure x
+  Latte.Abs.Ass _ ident expr -> failure x
   Latte.Abs.Incr _ ident -> failure x
   Latte.Abs.Decr _ ident -> failure x
   Latte.Abs.Ret _ expr -> failure x
@@ -60,11 +60,6 @@ transItem x = case x of
   Latte.Abs.NoInit _ ident -> failure x
   Latte.Abs.Init _ ident expr -> failure x
 
-transLValue :: Show a => Latte.Abs.LValue' a -> Result
-transLValue x = case x of
-  Latte.Abs.LVar _ ident -> failure x
-  Latte.Abs.LSField _ expr ident -> failure x
-
 transType :: Show a => Latte.Abs.Type' a -> Result
 transType x = case x of
   Latte.Abs.Class _ ident -> failure x
@@ -76,12 +71,10 @@ transType x = case x of
 
 transExpr :: Show a => Latte.Abs.Expr' a -> Result
 transExpr x = case x of
-  Latte.Abs.EVar _ lvalue -> failure x
+  Latte.Abs.EVar _ ident -> failure x
   Latte.Abs.ELitInt _ integer -> failure x
   Latte.Abs.ELitTrue _ -> failure x
   Latte.Abs.ELitFalse _ -> failure x
-  Latte.Abs.EStruct _ ident -> failure x
-  Latte.Abs.ENull _ ident -> failure x
   Latte.Abs.EApp _ ident exprs -> failure x
   Latte.Abs.EString _ string -> failure x
   Latte.Abs.Neg _ expr -> failure x

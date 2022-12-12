@@ -23,13 +23,13 @@ type InitArgsCode = String
 
 compileProgram :: Program -> IO (Either Error String)
 compileProgram program = do
-  result <- runStateT (runExceptT (complieTopDefs program)) initEnv
+  result <- runStateT (runExceptT (compileTopDefs program)) initEnv
   case fst result of
     (Left  error) -> return $ Left error
     (Right code ) -> return $ Right (builtinFuncDeclarations ++ code)
 
-complieTopDefs :: Program -> Compl LLVMCode
-complieTopDefs (Program _ defs) = do
+compileTopDefs :: Program -> Compl LLVMCode
+compileTopDefs (Program _ defs) = do
   addFuncDefinition defs
   code  <- compileFuncDefs defs
   state <- get
@@ -49,7 +49,20 @@ compileFuncDefs (def : defs) = do
   code2 <- compileFuncDefs defs
   return (code1 ++ code2)
 
+itemStr :: [StructItem] -> Compl String
+itemStr [] = do
+  return ""
+itemStr [SItem _ atype (Ident name)] = do
+  return $ show (getCType atype)
+itemStr (item : items) = do
+  r    <- itemStr [item]
+  rest <- itemStr items
+  return $ r ++ ",\n" ++ rest
+
 compileFuncDef :: TopDef -> Compl LLVMCode
+compileFuncDef (SDef pos (Ident name) items) = do
+  itemsS <- itemStr items
+  return ("%" ++ name ++ " = type {\n" ++ tab itemsS ++ "\n}\n") --TODO
 compileFuncDef (FnDef _ retType (Ident name) args block) = do
   let ctype = getCType retType
   prevState                <- get
@@ -76,7 +89,9 @@ compileFuncDef (FnDef _ retType (Ident name) args block) = do
   case ctype of
     CVoid -> return $ blockCore ++ show RetVoidI ++ "}\n"
     CStr  -> return $ blockCore ++ show RetDummyStrI ++ "}\n"
-    _     -> return $ blockCore ++ show (RetDummyI ctype) ++ "}\n"
+    CClass (Ident name) fields ->
+      return $ blockCore ++ ";TODO \n ret %" ++ name ++ "* null \n}\n"
+    _ -> return $ blockCore ++ show (RetDummyI ctype) ++ "}\n"
 
 compileArgs :: [Arg] -> Compl (ArgsCode, InitArgsCode)
 compileArgs [] = do
@@ -117,15 +132,43 @@ compileStmt (BStmt _ (Block _ stmts)) = do
             , sVar      = sVar newState
             }
   return code
-compileStmt (Decl pos varType items) = initVar (getCType varType) items
-compileStmt (Ass  pos ident   expr ) = do
+compileStmt (Decl pos varType        items) = initVar (getCType varType) items
+compileStmt (Ass  pos (LVar p ident) expr ) = do
   (exprReg, exprCode, _) <- compileExpr expr
-  (varType, var)    <- getVar ident
-  return (exprCode ++ show (SetV var varType exprReg))
+  (varType, var)         <- getVar ident
+  return
+    (  "\n;--- "
+    ++ show ident
+    ++ " = "
+    ++ show expr
+    ++ " ---\n"
+    ++ exprCode
+    ++ show (SetV var varType exprReg)
+    ++ ";--- End of assignment --\n\n"
+    )
+compileStmt (Ass pos (LSField p2 expr2 ident) expr) = do
+  (exprReg , exprCode , (CClass classIdent fields)) <- compileExpr expr2
+  (exprReg2, exprCode2, vtype                     ) <- compileExpr expr
+  let (fieldType, fieldNum) = getFieldNum fields ident
+  -- (varType, var)         <- getVar ident
+  reg <- useNewReg
+  return
+    (  ";--- Assigning to obj.field ---\n"
+    ++ exprCode
+    ++ exprCode2
+    ++ show (SetFieldI reg classIdent exprReg fieldNum exprReg2 fieldType)
+    ++ "\n;--- End assigning to obj.field ---\n\n"
+    )
 compileStmt (Incr pos ident) = compileStmt
-  (Ass pos ident (EAdd pos (EVar pos ident) (Plus pos) (ELitInt pos 1)))
+  (Ass pos
+       (LVar pos ident)
+       (EAdd pos (EVar pos (LVar pos ident)) (Plus pos) (ELitInt pos 1))
+  )
 compileStmt (Decr pos ident) = compileStmt
-  (Ass pos ident (EAdd pos (EVar pos ident) (Minus pos) (ELitInt pos 1)))
+  (Ass pos
+       (LVar pos ident)
+       (EAdd pos (EVar pos (LVar pos ident)) (Minus pos) (ELitInt pos 1))
+  )
 compileStmt (Ret pos expr) = do
   (val, code, exprType) <- compileExpr expr
   case val of
@@ -134,7 +177,8 @@ compileStmt (Ret pos expr) = do
     (VarV v      ) -> return (code ++ show (RetI exprType (VarV v)))
     (BoolV boolVal) ->
       return (code ++ "ret i1 " ++ show (BoolV boolVal) ++ "\n")
-    VoidV -> return ""
+    VoidV       -> return ""
+    NullV ctype -> return $ "ret " ++ show ctype ++ " null\n"
 compileStmt (VRet _                   ) = return (show VRetI)
 compileStmt (Cond _ (ELitTrue  _) stmt) = compileStmt stmt
 compileStmt (Cond _ (ELitFalse _) stmt) = return ""
@@ -169,9 +213,26 @@ initVar varType [] = return ""
 initVar CStr ((NoInit p i) : is) = initVar CStr (Init p i (EString p "") : is)
 initVar CInt ((NoInit p i) : is) = initVar CInt (Init p i (ELitInt p 0) : is)
 initVar CBool ((NoInit p i) : is) = initVar CBool (Init p i (ELitFalse p) : is)
+initVar (CClass classIdent _) ((NoInit pos ident) : items) = do
+  -- (retype,args) <- getProc :: Ident -> Compl (CType, [CType])
+  classType <- getClass classIdent
+
+  newVar    <- addVar classType ident
+
+  (Reg n)   <- useNewReg
+  let varIdent = "_tmp" ++ show n
+
+  varCode <- initVar classType items
+  -- let declCode = show (AddV newVar classType)
+  let declCode = show (AddClassI varIdent newVar classType)
+  return (varCode ++ declCode)
+  -- case classType of
+  --   CStr -> return (varCode ++ declCode)
+  --   CClass _ _ -> return (varCode ++ declCode)
+  --   _ -> return (varCode ++ declCode ++ show (InitI newVar varType) ++ "\n")
 initVar varType ((NoInit pos ident) : items) = do
-  newVar    <- addVar varType ident
-  (varCode) <- initVar varType items
+  newVar  <- addVar varType ident
+  varCode <- initVar varType items
   let declCode = show (AddV newVar varType)
   case varType of
     CStr -> return (varCode ++ declCode)
@@ -180,7 +241,7 @@ initVar varType ((Init pos ident expr) : items) = do
   (exprReg, exprCode, _) <- compileExpr expr
   newVar                 <- addVar varType ident
   let initCode = exprCode ++ show (SetV newVar varType exprReg)
-  (varsCode) <- initVar varType items
+  varsCode <- initVar varType items
   let declCode = show (AddV newVar varType)
   case varType of
     CStr -> return (varsCode ++ declCode ++ initCode)
@@ -194,12 +255,42 @@ initVar varType ((Init pos ident expr) : items) = do
 type ExprResult = (Val, LLVMCode, CType)
 
 compileExpr :: Expr -> Compl ExprResult
-compileExpr (EAdd pos e1 (Plus  posOp) e2) = complieBinExpr e1 AddOp e2
-compileExpr (EAdd pos e1 (Minus posOp) e2) = complieBinExpr e1 SubOp e2
-compileExpr (EMul pos e1 (Times posOp) e2) = complieBinExpr e1 MulOp e2
-compileExpr (EMul pos e1 (Div   posOp) e2) = complieBinExpr e1 DivOp e2
-compileExpr (EMul pos e1 (Mod   posOp) e2) = complieBinExpr e1 ModOp e2
-compileExpr (ERel pos e1 op            e2) = complieCmpExpr e1 e2 op
+compileExpr (ENull pos ident) = do
+  (ctype, fields) <- getProc ident
+  return (NullV ctype, "", ctype)--TODO
+compileExpr (EStruct pos ident) = do
+  (ctype, fields) <- getProc ident
+  let (CClass (Ident name) fields) = ctype
+
+  -- var <- lastVar
+  -- newVar <- addVar ctype ident
+
+  Reg r1   <- useNewReg
+  code     <- initVar (CClass ident []) [NoInit pos (Ident (show r1))]
+  (_, var) <- getVar (Ident (show r1))
+  res      <- useNewReg
+
+  let code2 =
+        show res
+          ++ " = load %"
+          ++ name
+          ++ "*, %"
+          ++ name
+          ++ "** "
+          ++ show var
+          ++ "\n"
+  -- let code2 = show res ++ " = adres " ++ show var ++ "\n\n"
+  return
+    ( RegV res
+    , "\n;INIT NEW\n" ++ code ++ "\n;-END-\n\n" ++ code2
+    , (CClass (Ident name) fields)
+    )--TODO
+compileExpr (EAdd pos e1 (Plus  posOp) e2) = compileBinExpr e1 AddOp e2
+compileExpr (EAdd pos e1 (Minus posOp) e2) = compileBinExpr e1 SubOp e2
+compileExpr (EMul pos e1 (Times posOp) e2) = compileBinExpr e1 MulOp e2
+compileExpr (EMul pos e1 (Div   posOp) e2) = compileBinExpr e1 DivOp e2
+compileExpr (EMul pos e1 (Mod   posOp) e2) = compileBinExpr e1 ModOp e2
+compileExpr (ERel pos e1 op            e2) = compileCmpExpr e1 e2 op
 compileExpr (ELitTrue pos                ) = do
   reg <- useNewReg
   return (RegV reg, show reg ++ " = " ++ "or i1 1,1" ++ "\n", CBool)
@@ -213,10 +304,71 @@ compileExpr (ELitInt pos num) = do
     , show reg ++ " = " ++ "or" ++ " i32 " ++ "0," ++ show num ++ "\n"
     , CInt
     )
-compileExpr (EVar pos ident) = do
+compileExpr (EVar pos (LVar p2 ident)) = do
   (vtype, var) <- getVar ident
+  case vtype of
+    -- CClass (Ident name) fields -> do
+    --   reg <- useNewReg
+    --   return (VarV var, "", vtype)
+    _ -> do
+      reg <- useNewReg
+      return (RegV reg, show (GetV var vtype reg), vtype)
+
+compileExpr (EVar pos (LSField p2 objExpr fieldIdent)) = do
+  (exprResult, code, _) <- compileExpr objExpr
+  let (EVar _ (LVar _ objIdent)) = objExpr
+  (ctype, var) <- getVar objIdent
+  let (CClass (Ident name) fields) = ctype
+  state <- get
+  let (ctype, fieldNum) = getFieldNum fields fieldIdent
+
   reg <- useNewReg
-  return (RegV reg, show (GetV var vtype reg), vtype)
+  let fieldCode =
+        show reg
+          ++ " = getelementptr %"
+          ++ name
+          ++ ", %"
+          ++ name
+          ++ "* "
+          ++ show exprResult
+          ++ ", i32 0, i32 "
+          ++ show fieldNum
+          ++ "\n"
+
+  reg2 <- useNewReg
+  let accesCode =
+        show reg2
+          ++ " = load "
+          ++ show ctype
+          ++ ", "
+          ++ show ctype
+          ++ "* "
+          ++ show reg
+          ++ "\n"
+        -- r0 = load %list, %list* %var0
+        -- show reg
+          -- ++ " = extractvalue  "
+          -- ++ "%"
+          -- ++ name
+          -- ++ " "
+          -- ++ show var
+          -- ++ ","
+          -- ++ show fieldNum
+          -- ++ " \n"
+        -- show reg ++ " = " ++ show objIdent ++ "." ++ show fieldNum ++ "\n"
+  return
+    ( RegV reg2
+    , "\n;--- Get "
+    ++ name
+    ++ "."
+    ++ identString fieldIdent
+    ++ "---\n"
+    ++ code
+    ++ fieldCode
+    ++ accesCode
+    ++ ";--- End of get field ---\n\n"
+    , ctype
+    )--TODO
 compileExpr (EApp pos (Ident name) exprs) = do
   (argStr , compileStr) <- compileArgsExpr exprs
   (retType, argsTypes ) <- getProc $ Ident name
@@ -249,8 +401,8 @@ compileExpr (EString pos str) = do
   return (RegV reg, asignCode, CStr)
 compileExpr (Neg pos expr) =
   compileExpr (EAdd pos (ELitInt pos 0) (Minus pos) expr)
-compileExpr (EAnd _ e1 e2) = complieAndOr e1 LAnd e2
-compileExpr (EOr  _ e1 e2) = complieAndOr e1 LOr e2
+compileExpr (EAnd _ e1 e2) = compileAndOr e1 LAnd e2
+compileExpr (EOr  _ e1 e2) = compileAndOr e1 LOr e2
 compileExpr (Not _ expr  ) = do
   (exprResult, code, ctype) <- compileExpr expr
   case exprResult of
@@ -265,7 +417,7 @@ compileExpr (Not _ expr  ) = do
         )
     other -> return (other, code, CBool)
 
-{- complie arguments of EApp
+{- compile arguments of EApp
     Params:
       arguments' expressions
     Returns:
@@ -283,14 +435,14 @@ compileArgsExpr (expr : exprs) = do
   return
     (show ctype ++ " " ++ show exprRes ++ "," ++ argStr, exprCode ++ argsCode)
 
-{- Complie binary expression
+{- compile binary expression
     Params:
       expression1
       expression2
       comparision operator
 -}
-complieBinExpr :: Expr -> ArtOp -> Expr -> Compl ExprResult
-complieBinExpr e1 operator e2 = do
+compileBinExpr :: Expr -> ArtOp -> Expr -> Compl ExprResult
+compileBinExpr e1 operator e2 = do
 
   state            <- get
   (_, _, exprType) <- compileExpr e1
@@ -308,13 +460,13 @@ complieBinExpr e1 operator e2 = do
       let instruction = show (ArtI resultRegister operator result1 result2)
       return (RegV resultRegister, code1 ++ code2 ++ instruction, type1)
 
-{- Complie comparision expresion
+{- compile comparision expresion
     Params:
       expression1 - compared expresion
       expression2 - compared expresion
  -}
-complieCmpExpr :: Expr -> Expr -> RelOp -> Compl ExprResult
-complieCmpExpr e1 e2 operator = do
+compileCmpExpr :: Expr -> Expr -> RelOp -> Compl ExprResult
+compileCmpExpr e1 e2 operator = do
   (result1, code1, type1) <- compileExpr e1
   (result2, code2, type2) <- compileExpr e2
   resultRegister          <- useNewReg
@@ -325,22 +477,24 @@ complieCmpExpr e1 e2 operator = do
     , CBool
     )
 
-{- Complie and/or expresion
+{- compile and/or expresion
     Params:
       Operator string
       expression1
       expression2
 -}
-complieAndOr :: Expr -> LogicalOperator -> Expr -> Compl ExprResult
-complieAndOr e1 operator e2 = do
+compileAndOr :: Expr -> LogicalOperator -> Expr -> Compl ExprResult
+compileAndOr e1 operator e2 = do
   let pos = Just (0, 0)
   ident          <- logicalCmpVar
   initVarCode    <- initVar CBool [Init pos ident (ELitTrue pos)]
-  setVarToE1Code <- compileStmt (Ass pos ident e1)
+  setVarToE1Code <- compileStmt (Ass pos (LVar pos ident) e1)
   setVarToE2Code <- compileStmt
     (if operator == LOr
-      then Cond pos (Not pos (EVar pos ident)) (Ass pos ident e2)
-      else Cond pos (EVar pos ident) (Ass pos ident e2)
+      then Cond pos
+                (Not pos (EVar pos (LVar pos ident)))
+                (Ass pos (LVar pos ident) e2)
+      else Cond pos (EVar pos (LVar pos ident)) (Ass pos (LVar pos ident) e2)
     )
-  (v, code, _) <- compileExpr (EVar pos ident)
+  (v, code, _) <- compileExpr (EVar pos (LVar pos ident))
   return (v, initVarCode ++ setVarToE1Code ++ setVarToE2Code ++ code, CBool)

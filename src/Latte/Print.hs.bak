@@ -185,7 +185,7 @@ instance Print (Latte.Abs.Stmt' a) where
     Latte.Abs.Empty _ -> prPrec i 0 (concatD [doc (showString ";")])
     Latte.Abs.BStmt _ block -> prPrec i 0 (concatD [prt 0 block])
     Latte.Abs.Decl _ type_ items -> prPrec i 0 (concatD [prt 0 type_, prt 0 items, doc (showString ";")])
-    Latte.Abs.Ass _ lvalue expr -> prPrec i 0 (concatD [prt 0 lvalue, doc (showString "="), prt 0 expr, doc (showString ";")])
+    Latte.Abs.Ass _ id_ expr -> prPrec i 0 (concatD [prt 0 id_, doc (showString "="), prt 0 expr, doc (showString ";")])
     Latte.Abs.Incr _ id_ -> prPrec i 0 (concatD [prt 0 id_, doc (showString "++"), doc (showString ";")])
     Latte.Abs.Decr _ id_ -> prPrec i 0 (concatD [prt 0 id_, doc (showString "--"), doc (showString ";")])
     Latte.Abs.Ret _ expr -> prPrec i 0 (concatD [doc (showString "return"), prt 0 expr, doc (showString ";")])
@@ -205,11 +205,6 @@ instance Print [Latte.Abs.Item' a] where
   prt _ [x] = concatD [prt 0 x]
   prt _ (x:xs) = concatD [prt 0 x, doc (showString ","), prt 0 xs]
 
-instance Print (Latte.Abs.LValue' a) where
-  prt i = \case
-    Latte.Abs.LVar _ id_ -> prPrec i 0 (concatD [prt 0 id_])
-    Latte.Abs.LSField _ expr id_ -> prPrec i 0 (concatD [prt 6 expr, doc (showString "."), prt 0 id_])
-
 instance Print (Latte.Abs.Type' a) where
   prt i = \case
     Latte.Abs.Class _ id_ -> prPrec i 0 (concatD [prt 0 id_])
@@ -226,12 +221,10 @@ instance Print [Latte.Abs.Type' a] where
 
 instance Print (Latte.Abs.Expr' a) where
   prt i = \case
-    Latte.Abs.EVar _ lvalue -> prPrec i 6 (concatD [prt 0 lvalue])
+    Latte.Abs.EVar _ id_ -> prPrec i 6 (concatD [prt 0 id_])
     Latte.Abs.ELitInt _ n -> prPrec i 6 (concatD [prt 0 n])
     Latte.Abs.ELitTrue _ -> prPrec i 6 (concatD [doc (showString "true")])
     Latte.Abs.ELitFalse _ -> prPrec i 6 (concatD [doc (showString "false")])
-    Latte.Abs.EStruct _ id_ -> prPrec i 6 (concatD [doc (showString "new"), prt 0 id_])
-    Latte.Abs.ENull _ id_ -> prPrec i 6 (concatD [doc (showString "("), prt 0 id_, doc (showString ")"), doc (showString "null")])
     Latte.Abs.EApp _ id_ exprs -> prPrec i 6 (concatD [prt 0 id_, doc (showString "("), prt 0 exprs, doc (showString ")")])
     Latte.Abs.EString _ str -> prPrec i 6 (concatD [printString str])
     Latte.Abs.Neg _ expr -> prPrec i 5 (concatD [doc (showString "-"), prt 6 expr])

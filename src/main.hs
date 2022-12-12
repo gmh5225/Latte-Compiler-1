@@ -32,6 +32,7 @@ main = do
       let programName = dropExtension $ takeFileName filename
       case pProgram tokens of
         Right program -> do
+          print program
           result <- runStaticAnallysis program
           case result of
             (Right text) -> do

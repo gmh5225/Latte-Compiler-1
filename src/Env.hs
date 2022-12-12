@@ -15,6 +15,8 @@ type VEnv = Map Ident Loc
 
 type PEnv = Map Ident CType
 
+-- type CEnv = Map Ident (Ident, [(CType, Ident)])
+
 type Store = Map Loc (CType, Var)
 
 data Env = Env
@@ -26,6 +28,7 @@ data Env = Env
   , sLabel    :: Label
   , sStrs     :: [String]
   , sVar      :: Var
+  -- , sCenv     :: CEnv
   }
 
 type Compl a = ExceptT Error (StateT Env IO) a
@@ -48,7 +51,15 @@ initEnv = Env
   , sLabel    = Lab 0
   , sStrs     = []
   , sVar      = Var 0
+  -- , sCenv     = Map.empty
   }
+
+-- printClass :: Ident-> Compl ()
+-- printClass ident = do
+--   state <- get
+--   let penv = sPenv state
+--   Map.lookup k (Map k a)
+--   return ()
 
 addString :: String -> Compl ()
 addString decl = do
@@ -92,6 +103,18 @@ addFunc (FnDef pos retType ident args block) = do
                 (CFun (getCType retType) (Prelude.map getArgCType args))
                 (sPenv state)
     }
+addFunc (SDef pos ident items) = do
+  state <- get
+  put state
+    { sPenv = Map.insert ident (CClass ident (getClasProps items)) (sPenv state)
+    }
+
+getClasProps :: [StructItem] -> [(CType, Ident)]
+getClasProps [] = []
+getClasProps ((SItem _ atype ident) : items) =
+  (getCType atype, ident) : getClasProps items
+
+
 
 useNewReg :: Compl Register
 useNewReg = do
@@ -115,12 +138,30 @@ getVar ident = do
 getProc :: Ident -> Compl (CType, [CType])
 getProc ident = do
   state <- get
-  let (Just (CFun retType argsTypes)) = Map.lookup ident $ sPenv state
-  return (retType, argsTypes)
+  case Map.lookup ident $ sPenv state of
+    (Just (CFun retType argsTypes)) -> return (retType, argsTypes)
+    (Just (CClass ident fields)) -> return ((CClass ident fields),[])
+
+  -- let (Just (CFun retType argsTypes)) = Map.lookup ident $ sPenv state
+  -- return (retType, argsTypes)
+
+getClass :: Ident -> Compl CType
+getClass ident = do
+  state <- get
+  let (Just result) = Map.lookup ident $ sPenv state
+  return result
 
 lastVar :: Compl Var
 lastVar = do
   state <- get
   let Var v = sVar state
-  return (Var $ v -1)
+  return (Var $ v - 1)
 
+getFieldNum :: [(CType, Ident)] -> Ident -> (CType, Integer)
+getFieldNum = getFieldNumH 0
+
+getFieldNumH :: Integer -> [(CType, Ident)] -> Ident -> (CType, Integer)
+getFieldNumH n [] ident = (CVoid, -1)
+getFieldNumH n ((ctype, ident2) : rest) ident
+  | ident2 == ident = (ctype, n)
+  | otherwise       = getFieldNumH (n + 1) rest ident

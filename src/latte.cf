@@ -6,11 +6,17 @@ Program.   Program ::= [TopDef] ;
 
 FnDef.	   TopDef ::= Type Ident "(" [Arg] ")" Block ;
 
+SDef.      TopDef ::= "class" Ident "{" [StructItem] "}" ;
+
 separator nonempty TopDef "" ;
 
 Arg. 	   Arg ::= Type Ident;
 
 separator  Arg "," ;
+
+SItem.     StructItem ::= Type Ident ;
+
+separator  StructItem ";" ;
 
 -- statements ----------------------------------------------
 
@@ -30,7 +36,11 @@ Init.      Item ::= Ident "=" Expr ;
 
 separator nonempty Item "," ;
 
-Ass.       Stmt ::= Ident "=" Expr  ";" ;
+Ass.       Stmt ::= LValue  "=" Expr  ";" ;
+
+LVar.      LValue ::= Ident ;
+
+LSField.   LValue ::= Expr6 "." Ident ;
 
 Incr.      Stmt ::= Ident "++"  ";" ;
 
@@ -50,6 +60,8 @@ SExp.      Stmt ::= Expr  ";" ;
 
 -- Types ---------------------------------------------------
 
+Class.     Type ::= Ident ;
+
 Int.       Type ::= "int" ;
 
 Str.       Type ::= "string" ;
@@ -64,13 +76,17 @@ separator  Type "," ;
 
 -- Expressions ---------------------------------------------
 
-EVar.      Expr6 ::= Ident ;
+EVar.      Expr6 ::= LValue ;
 
 ELitInt.   Expr6 ::= Integer ;
 
 ELitTrue.  Expr6 ::= "true" ;
 
 ELitFalse. Expr6 ::= "false" ;
+
+EStruct.   Expr6 ::= "new" Ident ;
+
+ENull.     Expr6 ::= "(" Ident ")" "null" ;
 
 EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
 

@@ -35,31 +35,28 @@ import Latte.Lex
   ','       { PT _ (TS _ 10) }
   '-'       { PT _ (TS _ 11) }
   '--'      { PT _ (TS _ 12) }
-  '.'       { PT _ (TS _ 13) }
-  '/'       { PT _ (TS _ 14) }
-  ';'       { PT _ (TS _ 15) }
-  '<'       { PT _ (TS _ 16) }
-  '<='      { PT _ (TS _ 17) }
-  '='       { PT _ (TS _ 18) }
-  '=='      { PT _ (TS _ 19) }
-  '>'       { PT _ (TS _ 20) }
-  '>='      { PT _ (TS _ 21) }
-  'boolean' { PT _ (TS _ 22) }
-  'class'   { PT _ (TS _ 23) }
-  'else'    { PT _ (TS _ 24) }
-  'false'   { PT _ (TS _ 25) }
-  'if'      { PT _ (TS _ 26) }
-  'int'     { PT _ (TS _ 27) }
-  'new'     { PT _ (TS _ 28) }
-  'null'    { PT _ (TS _ 29) }
-  'return'  { PT _ (TS _ 30) }
-  'string'  { PT _ (TS _ 31) }
-  'true'    { PT _ (TS _ 32) }
-  'void'    { PT _ (TS _ 33) }
-  'while'   { PT _ (TS _ 34) }
-  '{'       { PT _ (TS _ 35) }
-  '||'      { PT _ (TS _ 36) }
-  '}'       { PT _ (TS _ 37) }
+  '/'       { PT _ (TS _ 13) }
+  ';'       { PT _ (TS _ 14) }
+  '<'       { PT _ (TS _ 15) }
+  '<='      { PT _ (TS _ 16) }
+  '='       { PT _ (TS _ 17) }
+  '=='      { PT _ (TS _ 18) }
+  '>'       { PT _ (TS _ 19) }
+  '>='      { PT _ (TS _ 20) }
+  'boolean' { PT _ (TS _ 21) }
+  'class'   { PT _ (TS _ 22) }
+  'else'    { PT _ (TS _ 23) }
+  'false'   { PT _ (TS _ 24) }
+  'if'      { PT _ (TS _ 25) }
+  'int'     { PT _ (TS _ 26) }
+  'return'  { PT _ (TS _ 27) }
+  'string'  { PT _ (TS _ 28) }
+  'true'    { PT _ (TS _ 29) }
+  'void'    { PT _ (TS _ 30) }
+  'while'   { PT _ (TS _ 31) }
+  '{'       { PT _ (TS _ 32) }
+  '||'      { PT _ (TS _ 33) }
+  '}'       { PT _ (TS _ 34) }
   L_Ident   { PT _ (TV _)    }
   L_integ   { PT _ (TI _)    }
   L_quoted  { PT _ (TL _)    }
@@ -123,7 +120,7 @@ Stmt
   : ';' { (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1), Latte.Abs.Empty (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1))) }
   | Block { (fst $1, Latte.Abs.BStmt (fst $1) (snd $1)) }
   | Type ListItem ';' { (fst $1, Latte.Abs.Decl (fst $1) (snd $1) (snd $2)) }
-  | LValue '=' Expr ';' { (fst $1, Latte.Abs.Ass (fst $1) (snd $1) (snd $3)) }
+  | Ident '=' Expr ';' { (fst $1, Latte.Abs.Ass (fst $1) (snd $1) (snd $3)) }
   | Ident '++' ';' { (fst $1, Latte.Abs.Incr (fst $1) (snd $1)) }
   | Ident '--' ';' { (fst $1, Latte.Abs.Decr (fst $1) (snd $1)) }
   | 'return' Expr ';' { (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1), Latte.Abs.Ret (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
@@ -143,11 +140,6 @@ ListItem
   : Item { (fst $1, (:[]) (snd $1)) }
   | Item ',' ListItem { (fst $1, (:) (snd $1) (snd $3)) }
 
-LValue :: { (Latte.Abs.BNFC'Position, Latte.Abs.LValue) }
-LValue
-  : Ident { (fst $1, Latte.Abs.LVar (fst $1) (snd $1)) }
-  | Expr6 '.' Ident { (fst $1, Latte.Abs.LSField (fst $1) (snd $1) (snd $3)) }
-
 Type :: { (Latte.Abs.BNFC'Position, Latte.Abs.Type) }
 Type
   : Ident { (fst $1, Latte.Abs.Class (fst $1) (snd $1)) }
@@ -164,12 +156,10 @@ ListType
 
 Expr6 :: { (Latte.Abs.BNFC'Position, Latte.Abs.Expr) }
 Expr6
-  : LValue { (fst $1, Latte.Abs.EVar (fst $1) (snd $1)) }
+  : Ident { (fst $1, Latte.Abs.EVar (fst $1) (snd $1)) }
   | Integer { (fst $1, Latte.Abs.ELitInt (fst $1) (snd $1)) }
   | 'true' { (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1), Latte.Abs.ELitTrue (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1))) }
   | 'false' { (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1), Latte.Abs.ELitFalse (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1))) }
-  | 'new' Ident { (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1), Latte.Abs.EStruct (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
-  | '(' Ident ')' 'null' { (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1), Latte.Abs.ENull (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
   | Ident '(' ListExpr ')' { (fst $1, Latte.Abs.EApp (fst $1) (snd $1) (snd $3)) }
   | String { (fst $1, Latte.Abs.EString (fst $1) (snd $1)) }
   | '(' Expr ')' { (uncurry Latte.Abs.BNFC'Position (tokenLineCol $1), (snd $2)) }

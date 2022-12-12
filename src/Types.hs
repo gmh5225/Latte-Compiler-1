@@ -10,6 +10,7 @@ data CType
   | CBool
   | CVoid
   | CFun CType [CType]
+  | CClass Ident [(CType,Ident)]
   deriving (Eq)
 
 getCType :: Type -> CType
@@ -18,13 +19,19 @@ getCType (Str  _            ) = CStr
 getCType (Bool _            ) = CBool
 getCType (Void _            ) = CVoid
 getCType (Fun _ retType args) = CFun (getCType retType) (map getCType args)
+getCType (Class _ ident     ) = CClass ident []
 
 instance Show CType where
-  show CInt       = "i32"
-  show CStr       = "i8*"
-  show CBool      = "i1"
-  show CVoid      = "void"
-  show (CFun _ _) = "function"
+  show CInt                         = "i32"
+  show CStr                         = "i8*"
+  show CBool                        = "i1"
+  show CVoid                        = "void"
+  show (CFun   _            _     ) = "function"
+  show (CClass (Ident name) fields) = "%" ++ name ++ "*"
+
+printType :: CType -> String
+printType (CClass (Ident name) fields) = "%" ++ name ++ "*" ++ show fields
+printType ctype                        = show ctype
 
 newtype Register
   = Reg Int
@@ -62,6 +69,7 @@ data Val
   | VarV Var
   | BoolV Bool
   | VoidV
+  | NullV CType
   deriving (Eq)
 
 instance Show Val where
@@ -71,6 +79,7 @@ instance Show Val where
   show (BoolV False) = "0"
   show (BoolV True ) = "1"
   show VoidV         = ""
+  show (NullV _) = "null"
 
 data LogicalOperator
   = LOr
