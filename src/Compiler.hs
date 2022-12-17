@@ -208,28 +208,35 @@ compileStmt (SExp pos expr) = do
   (_, code, _) <- compileExpr expr
   return code
 
+allocObj :: Ident -> Ident -> Compl LLVMCode
+allocObj classIdent varIdent = do
+  classType <- getClass classIdent
+
+  newVar    <- addVar classType varIdent
+
+  (Reg n)   <- useNewReg
+  let varIdent = "_tmp" ++ show n
+
+
+  let declCode = show (AddClassI varIdent newVar classType)
+  return (declCode)
+
+
 initVar :: CType -> [Item] -> Compl LLVMCode
 initVar varType [] = return ""
 initVar CStr ((NoInit p i) : is) = initVar CStr (Init p i (EString p "") : is)
 initVar CInt ((NoInit p i) : is) = initVar CInt (Init p i (ELitInt p 0) : is)
 initVar CBool ((NoInit p i) : is) = initVar CBool (Init p i (ELitFalse p) : is)
 initVar (CClass classIdent _) ((NoInit pos ident) : items) = do
-  -- (retype,args) <- getProc :: Ident -> Compl (CType, [CType])
   classType <- getClass classIdent
 
   newVar    <- addVar classType ident
 
-  (Reg n)   <- useNewReg
-  let varIdent = "_tmp" ++ show n
+  varCode   <- initVar classType items
 
-  varCode <- initVar classType items
-  -- let declCode = show (AddV newVar classType)
-  let declCode = show (AddClassI varIdent newVar classType)
+  let declCode = show (AddNullI newVar classType)
   return (varCode ++ declCode)
-  -- case classType of
-  --   CStr -> return (varCode ++ declCode)
-  --   CClass _ _ -> return (varCode ++ declCode)
-  --   _ -> return (varCode ++ declCode ++ show (InitI newVar varType) ++ "\n")
+
 initVar varType ((NoInit pos ident) : items) = do
   newVar  <- addVar varType ident
   varCode <- initVar varType items
@@ -266,7 +273,8 @@ compileExpr (EStruct pos ident) = do
   -- newVar <- addVar ctype ident
 
   Reg r1   <- useNewReg
-  code     <- initVar (CClass ident []) [NoInit pos (Ident (show r1))]
+  code     <- allocObj ident (Ident (show r1))
+
   (_, var) <- getVar (Ident (show r1))
   res      <- useNewReg
 

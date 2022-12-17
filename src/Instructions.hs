@@ -21,6 +21,7 @@ data Instruction
   | WhileI Val String Label Label Label String
   | AddV Var CType
   | AddClassI String Var CType
+  | AddNullI Var CType
   | InitI Var CType
   | GetV Var CType Register
   | SetV Var CType Val
@@ -41,6 +42,21 @@ data Instruction
 
 instance Show Instruction where
   show :: Instruction -> String
+  show (AddNullI v (CClass (Ident name) _)) =
+    "\n;--- Struct ["
+      ++ name
+      ++ "] declaration ---\n"
+      ++ show v ++ " = alloca %"
+      ++ name
+      ++ "*\n"
+      ++ "store %"
+      ++ name
+      ++ "* null, %"
+      ++ name
+      ++ "** "
+      ++ show v
+      ++ "\n;--- End of struct declaration ---\n\n"
+  show (AddNullI v _) = ""
   show (AddClassI tmp v (CClass (Ident name) _)) =
     "\n;--- Struct ["
       ++ name
