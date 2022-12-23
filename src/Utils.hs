@@ -68,3 +68,6 @@ builtinFuncDeclarations =
 
 identString :: Ident -> String
 identString (Ident name) = name
+
+__ :: BNFC'Position
+__ = BNFC'NoPosition
