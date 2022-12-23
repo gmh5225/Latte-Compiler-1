@@ -1,0 +1,50 @@
+###### Struct - fields types ######
+
+class Person {
+  int age;
+  string name;
+  Person parent1;
+  Person parent2;
+  boolean male;
+}
+
+int main() {
+    Person person;
+
+    if(person != (Person)null){
+        error();
+    }
+
+    person = new Person;
+    if(person == (Person)null){
+        error();
+    }
+
+    if(person.parent1 != (Person)null || person.parent2 != (Person)null){
+        error();
+    }
+
+    person.parent1 = new Person;
+    person.parent2 = new Person;
+
+    person.parent1.age = 50;
+    person.parent1.name = "Anna";
+    person.parent1.male = false;
+
+    person.parent2.parent1 = person;
+
+    printInt(person.parent2.parent1.parent1.age);
+    printString(person.parent2.parent1.parent1.name);
+    printBool(person.parent2.parent1.parent1.male);
+
+    return 0;
+}
+
+void printBool(boolean b) {
+  if (b) {
+    printString("true");
+  } else {
+    printString("false");
+ }
+ return;
+}

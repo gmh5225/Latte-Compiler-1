@@ -1,0 +1,36 @@
+###### Struct - fields types ######
+
+class Person {
+  int age;
+  string name;
+  Person parent;
+  boolean male;
+}
+
+class list {
+  int elem;
+  list next;
+}
+
+int main() {
+  Person person = new Person;
+
+  list newNode = new list;
+  newNode.next = (list)null;
+  printInt(person.age);
+  printString(person.name);
+  printBoolean(person.male);
+  if(person.parent == (Person)null){
+    printString("Is null");
+  }
+    
+  return 0;
+}
+
+void printBoolean(boolean b){
+  if(b){
+    printString("True");
+  }else{
+    printString("False");
+  }
+}

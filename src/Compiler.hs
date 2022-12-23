@@ -1,7 +1,8 @@
 module Compiler where
 
 import           Control.Monad.Except
-import           Control.Monad.State
+import Control.Monad.State
+    ( MonadState(put, get), StateT(runStateT) )
 import           Data.List
 import           Data.Map                      as Map
 import           Env
@@ -150,8 +151,10 @@ compileStmt (Ass  __ (LVar p ident) expr ) = do
 compileStmt (Ass __ (LSField p2 expr2 ident) expr) = do
   (exprReg , exprCode , (CClass classIdent fields)) <- compileExpr expr2
   (exprReg2, exprCode2, vtype                     ) <- compileExpr expr
+
+  (CClass _ fields) <- getClass classIdent
   let (fieldType, fieldNum) = getFieldNum fields ident
-  -- (varType, var)         <- getVar ident
+
   reg <- useNewReg
   return
     (  ";--- Assigning to obj.field ---\n"
@@ -489,10 +492,10 @@ compileExpr (Not _ expr  ) = do
 -}
 initStructFields :: Ident -> [(CType, Ident)] -> Compl String
 initStructFields objIdent []                             = return ""
-initStructFields objIdent ((ctype, fieldIdent) : fields) = do
+initStructFields objIdent ((fieldType, fieldIdent) : fields) = do
   let lvalue = LSField __ (EVar __ (LVar __ objIdent)) fieldIdent
   results <- initStructFields objIdent fields
-  result  <- initStructField ctype lvalue
+  result  <- initStructField fieldType lvalue
   return $ result ++ results
 
 {- initialize object.field with default value
