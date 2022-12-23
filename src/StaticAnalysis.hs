@@ -57,15 +57,11 @@ type Error = String
 type Compl a = ExceptT Error (StateT Env IO) a
 
 printError :: Pos -> String -> Compl a
-printError (Just (l, c)) text =
-  throwError
-    $  "error at line "
-    ++ show l
-    ++ " column "
-    ++ show c
-    ++ ": "
-    ++ text
-printError Nothing text = throwError $ "error: " ++ text
+printError pos text = throwError $ "error" ++ showPos pos ++ ": " ++ text
+
+showPos :: Pos -> String
+showPos (Just (l, c)) = " at line " ++ show l ++ " column " ++ show c
+showPos Nothing       = ""
 
 initEnv :: Env
 initEnv = fromList
@@ -129,8 +125,6 @@ addDef (SDef pos ident items) = do
       put $ Map.insert ident (CClass ident [], False) env
       return ""
 
-
-
 addDecls :: [TopDef] -> Compl Val
 addDecls []           = return ""
 addDecls (def : defs) = do
@@ -142,10 +136,6 @@ addDecl :: TopDef -> Compl Val
 addDecl (FnDef pos retType ident args block) = do
   env <- get
   let (Ident varName) = ident
-  -- case Map.lookup ident env of
-  --   (Just (storedType, modif)) ->
-  --     printError pos $ "Name" ++ varName ++ " is already taken."
-  --   Nothing -> do
   put $ Map.insert
     ident
     (CFun (getCType retType) (Prelude.map getArgType args), False)
@@ -154,23 +144,33 @@ addDecl (FnDef pos retType ident args block) = do
 addDecl (SDef pos ident items) = do
   env <- get
   let (Ident varName) = ident
-  
-  -- 
-      --TODO sprawdz czy wsyzstkie te itemy maja ok typy
   checkItems items
+  _ <- checkRep items
   put $ Map.insert ident (CClass ident (itemsToFields items), False) env
-      -- put $ Map.insert
-      --   ident
-      --   (CClass ident ldpals, False)
-      --   env
   return ""
+
+checkRep :: [StructItem] -> Compl String
+checkRep items = do
+  forM_
+    [ cIfExist i1 i2 | i1 <- items, i2 <- items ]
+    (\x -> do
+      x
+    )
+  return ""
+
+cIfExist :: StructItem -> StructItem -> Compl String
+cIfExist (SItem p1 _ i1) (SItem p2 _ i2) = do
+  if p2 /= p1 && i1 == i2
+    then do
+      printError p2 $ identString i2 ++ " was already defined" ++ showPos p1
+    else return ""
 
 checkItems :: [StructItem] -> Compl String
 checkItems []                        = return ""
 checkItems ((SItem pos t i) : items) = do
   assertTypeExist pos (getCType t)
   checkItems items
-  
+
 assertTypeExist :: Pos -> CType -> Compl String
 assertTypeExist pos (CClass ident fields) = do
   env <- get
@@ -179,11 +179,9 @@ assertTypeExist pos (CClass ident fields) = do
     Nothing  -> printError pos $ (identString ident) ++ " is not defined"
 assertTypeExist _ _ = return ""
 
--- TODO: sprawdzanie czy nie powtarzaja sie wewnatrz sturcta identy
 itemsToFields :: [StructItem] -> [(CType, Ident)]
 itemsToFields []                        = []
 itemsToFields ((SItem pos t i) : items) = (getCType t, i) : itemsToFields items
-
 
 getArgType :: Arg -> CType
 getArgType (Arg pos argType ident) = getCType argType
@@ -207,7 +205,7 @@ checkDef (FnDef pos retType ident args block) = do
     else return ""
   put env
   return ""
-checkDef (SDef pos ident items) = return "" --TODO
+checkDef (SDef pos ident items) = return ""
 
 checkStmts :: CType -> [Stmt] -> Compl Val
 checkStmts retType []             = return ""
@@ -280,6 +278,11 @@ newContext (ident, (CFun retType args, modif)) =
   (ident, (CFun retType args, False))
 newContext (ident, (storedType, modif)) = (ident, (storedType, True))
 
+assertField :: Pos -> [(CType, Ident)] -> Ident -> Compl CType
+assertField pos [] (Ident name) = printError pos $ " no such field " ++ name
+assertField pos ((fieldType, fieldIdent) : fields) ident = do
+  if fieldIdent == ident then return fieldType else assertField pos fields ident
+
 checkStmt :: CType -> Stmt -> Compl Val
 checkStmt retType (Empty pos      ) = return ""
 checkStmt retType (BStmt pos block) = do
@@ -291,16 +294,20 @@ checkStmt retType (BStmt pos block) = do
   return ""
 checkStmt retType (Decl pos (Void vPos) items) =
   printError vPos "Cannot declare variable of type void"
-checkStmt retType (Decl pos varType items) =
+checkStmt retType (Decl pos varType items) = do
+  _ <- assertTypeExist pos (getCType varType)
   initVar pos (getCType varType) items
 checkStmt retType (Ass pos (LVar p2 ident) expr) = do
   varType <- assertDecl pos ident
   assertExprType expr varType
 checkStmt retType (Ass pos (LSField p2 expr ident) valExpr) = do
-  return ""
-  -- TODO
-  -- varType <- assertDecl pos ident
-  -- assertExprType expr varType
+  objType <- getExprType expr
+  let (CClass i fields) = objType
+  e <- get
+  let (Just (CClass classIdent fields, modif)) = Map.lookup i e
+  fieldType <- assertField pos fields ident
+  exprType <- getExprType valExpr
+  assertExprType valExpr fieldType
 checkStmt retType (Incr pos ident) = assertVarType pos ident CInt
 checkStmt retType (Decr pos ident) = assertVarType pos ident CInt
 checkStmt retType (Ret  pos expr ) = assertExprType expr retType
@@ -330,17 +337,8 @@ getExprType (EVar pos (LVar p2 ident        )) = assertDecl pos ident
 getExprType (EVar pos (LSField p2 expr ident)) = do
   objType <- getExprType expr
   let (CClass i fields) = objType
-
-
   e <- get
-  -- printError pos $ show e
   let (Just (CClass classIdent fields, modif)) = Map.lookup i e
-
-  -- printError pos $ show fields --tu musimy miec odpowiednie fieldsy (zawierajace co trzba)
-
-  -- e <- get
-  -- let (Just (varType, modif)) = Map.lookup ident e 
-  -- return varType --TODO
   return (CClass classIdent fields)
 getExprType (ELitInt pos num) = do
   checkIfIntOverflow num pos
@@ -361,13 +359,24 @@ getExprType (EApp pos ident exprs) = do
 getExprType (EStruct p ident) = return $ CClass ident [] -- TODO
 getExprType (ENull   p ident) = return $ CClass ident [] -- TODO
 
+getField :: [(CType, Ident)] -> Ident -> CType
+getField ((ctype, fieldIdent) : fields) ident
+  | fieldIdent == ident = ctype
+  | otherwise           = getField fields ident
+getField [] ident = CVoid
+
 assertExprType :: Expr -> CType -> Compl Val
 assertExprType (EVar pos (LVar p2 ident)) exprType =
   assertVarType pos ident exprType
 assertExprType (EVar pos (LSField p2 expr ident)) exprType = do
-  -- ctype <- getExprType (EVar pos (LSField p2 expr ident))
-  -- printError pos $ show ctype
-  return "" --TODO
+  objType <- getExprType expr
+  let (CClass i fields) = objType
+  e <- get
+  let (Just (CClass classIdent fields, modif)) = Map.lookup i e
+  let ctype = getField fields ident
+  if ctype /= exprType then 
+    do printError pos "Error type"
+  else return ""
 assertExprType (ELitInt pos num) CInt = do
   checkIfIntOverflow num pos
   return ""
@@ -442,14 +451,14 @@ assertExprType (EStruct p ident) (CClass ident2 []) = do
   let (Ident name) = ident2
   if ident2 /= ident
     then do
-      printError p $ "Expresion should be of type " ++ name ++ "|\n"
+      printError p $ "Expresion should be of type " ++ name ++ "\n"
     else do
       return ""
 assertExprType (ENull p ident) exprectedType =
   assertExprType (EStruct p ident) exprectedType
 assertExprType expr expedtedType =
   printError (hasPosition expr)
-    $  "|Expresion should be of type "
+    $  "Expresion should be of type "
     ++ show expedtedType
 
 checkArgTypes :: Pos -> [CType] -> [Expr] -> Compl Val
