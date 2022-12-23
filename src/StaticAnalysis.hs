@@ -116,7 +116,25 @@ addDef (FnDef pos retType ident args block) = do
         (CFun (getCType retType) (Prelude.map getArgType args), False)
         env
       return ""
-addDef (SDef pos ident items) = return "" --TODO
+addDef (SDef pos ident items) = do
+  env <- get
+  let (Ident varName) = ident
+  case Map.lookup ident env of
+    (Just (storedType, modif)) ->
+      printError pos $ "Name" ++ varName ++ " is already taken."
+    Nothing -> do
+      put $ Map.insert ident (CClass ident (itemsToFields items), False) env
+      -- put $ Map.insert
+      --   ident
+      --   (CClass ident ldpals, False)
+      --   env
+      return ""
+
+-- TODO: sprawdzanie czy nie powtarzaja sie wewnatrz sturcta identy
+itemsToFields :: [StructItem] -> [(CType, Ident)]
+itemsToFields []                        = []
+itemsToFields ((SItem pos t i) : items) = (getCType t, i) : itemsToFields items
+
 
 getArgType :: Arg -> CType
 getArgType (Arg pos argType ident) = getCType argType
@@ -261,7 +279,20 @@ checkIfIntOverflow num pos =
 getExprType :: Expr -> Compl CType
 getExprType (EVar pos (LVar p2 ident        )) = assertDecl pos ident
 getExprType (EVar pos (LSField p2 expr ident)) = do
-  return CInt --TODO
+  objType <- getExprType expr
+  let (CClass i fields) = objType
+
+
+  e <- get
+  -- printError pos $ show e
+  let (Just ((CClass classIdent fields), modif)) = Map.lookup i e
+
+  -- printError pos $ show fields --tu musimy miec odpowiednie fieldsy (zawierajace co trzba)
+
+  -- e <- get
+  -- let (Just (varType, modif)) = Map.lookup ident e 
+  -- return varType --TODO
+  return (CClass classIdent fields)
 getExprType (ELitInt pos num) = do
   checkIfIntOverflow num pos
   return CInt
@@ -300,19 +331,26 @@ assertExprType (EAnd pos e1 e2) CBool = do
 assertExprType (ERel pos e1 op e2) CBool = do
   t1 <- getExprType e1
   t2 <- getExprType e2
-  if t1 == t2
-    then do
-      case t1 of
-        CStr        -> printError (hasPosition op) "Cannot compare Strings"
-        CVoid       -> printError (hasPosition op) "Cannot compare Voids"
-        CFun ct cts -> printError (hasPosition op) "Cannot compare Functions"
-        _           -> return ""
-    else
-      printError (hasPosition op)
-      $  "Cannot compare "
-      ++ show t1
-      ++ " with "
-      ++ show t2
+  case t1 of
+    (CClass i1 _) -> do
+      let (CClass i2 _) = t2
+      if i1 == i2 then do 
+        return ""
+      else printError (hasPosition op) $ "Cannot compare " ++ show i1 ++  " with " ++ show i2
+    _ -> do
+      if t1 == t2
+        then do
+          case t1 of
+            CStr        -> printError (hasPosition op) "Cannot compare Strings"
+            CVoid       -> printError (hasPosition op) "Cannot compare Voids"
+            CFun ct cts -> printError (hasPosition op) "Cannot compare Functions"
+            _           -> return ""
+        else
+          printError (hasPosition op)
+          $  "Cannot compare "
+          ++ show t1
+          ++ " with "
+          ++ show t2
 assertExprType (EAdd pos e1 op e2) CInt = do
   assertExprType e1 CInt
   assertExprType e2 CInt
@@ -348,7 +386,8 @@ assertExprType (EStruct p ident) (CClass ident2 []) = do
       printError p $ "Expresion should be of type " ++ name ++ "|\n"
     else do
       return ""
-assertExprType (ENull p ident) exprectedType = assertExprType (EStruct p ident) exprectedType
+assertExprType (ENull p ident) exprectedType =
+  assertExprType (EStruct p ident) exprectedType
 assertExprType expr expedtedType =
   printError (hasPosition expr)
     $  "|Expresion should be of type "
