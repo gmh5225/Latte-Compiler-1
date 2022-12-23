@@ -1,0 +1,44 @@
+###### Struct ######
+
+class list {
+  int elem;
+  list next;
+}
+
+int main() {
+    list root,current;
+
+    root = new list;
+    root.elem = 0;
+    current = root;
+    // root = {0}
+
+    int i = 1;
+    while(i <= 5){
+        // i = 1,2,3,4,5 
+        list newNode;
+        newNode = new list;
+        newNode.elem = i;
+        newNode.next = (list)null; // To nie powinno byc potrzebne -> domyslna inizjalizacja na null
+
+        current.next = newNode; // 0 -> 1 -> 2 -> 3 -> 4 -> 5
+        current = newNode;
+
+        i++;
+    }
+
+    current = root;
+    while(current != (list)null){
+      printInt(current.elem); // 0,1,2,3,4,5
+      current = current.next;
+    }   
+
+    printInt(root.elem); // 0
+    printInt(root.next.elem); // 1
+    printInt(root.next.next.elem); // 2
+    printInt(root.next.next.next.elem); // 3
+    printInt(root.next.next.next.next.elem); // 4
+    printInt(root.next.next.next.next.next.elem); // 5
+    
+    return 0;
+}

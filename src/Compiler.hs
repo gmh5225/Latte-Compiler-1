@@ -244,12 +244,31 @@ initVar varType ((NoInit pos ident) : items) = do
   case varType of
     CStr -> return (varCode ++ declCode)
     _    -> return (varCode ++ declCode ++ show (InitI newVar varType) ++ "\n")
+
+initVar (CClass classIdent _) ((Init pos ident expr) : items) = do
+  (exprReg, exprCode, _) <- compileExpr expr
+
+
+  classType              <- getClass classIdent
+
+  newVar                 <- addVar classType ident
+
+  varCode                <- initVar classType items
+
+  let declCode = show (AddNullI newVar classType)
+
+  let initCode = exprCode ++ show (SetV newVar classType exprReg)
+
+  return (varCode ++ declCode ++ initCode)
+
 initVar varType ((Init pos ident expr) : items) = do
   (exprReg, exprCode, _) <- compileExpr expr
+
   newVar                 <- addVar varType ident
-  let initCode = exprCode ++ show (SetV newVar varType exprReg)
-  varsCode <- initVar varType items
+  varsCode               <- initVar varType items
   let declCode = show (AddV newVar varType)
+
+  let initCode = exprCode ++ show (SetV newVar varType exprReg)
   case varType of
     CStr -> return (varsCode ++ declCode ++ initCode)
     _ ->
@@ -288,9 +307,21 @@ compileExpr (EStruct pos ident) = do
           ++ show var
           ++ "\n"
   -- let code2 = show res ++ " = adres " ++ show var ++ "\n\n"
+  -- fields = [ctype,ident]
+  -- TODO Dla fields nie jednego fixed
+
+
+  -- let ep = (LSField pos (EVar pos (LVar pos (Ident (show r1)))) (Ident "elem"))
+  -- initCode2 <- compileStmt (Ass pos ep (ELitInt pos 0))
+  -- let initCode =
+  --       "\n;INICJALIZUJE ZMINNE STRUCTA\n " ++ initCode2 ++ "\n;KONIEC\n"
+  initCode <- initStructFields (Ident (show r1)) fields
+
+  -- let initCode = ""
+
   return
     ( RegV res
-    , "\n;INIT NEW\n" ++ code ++ "\n;-END-\n\n" ++ code2
+    , "\n;INIT NEW\n" ++ code ++ "\n;-END-\n\n" ++ code2 ++ initCode
     , (CClass (Ident name) fields)
     )--TODO
 compileExpr (EAdd pos e1 (Plus  posOp) e2) = compileBinExpr e1 AddOp e2
@@ -322,10 +353,12 @@ compileExpr (EVar pos (LVar p2 ident)) = do
       reg <- useNewReg
       return (RegV reg, show (GetV var vtype reg), vtype)
 
-compileExpr (EVar pos (LSField p2 objExpr fieldIdent)) = do
+-- ident.ident | a moce byc tez object.ident
+compileExpr (EVar pos (LSField p2 (EVar _ (LVar _ objIdent)) fieldIdent)) = do
+  let objExpr = EVar pos (LVar pos objIdent)
   (exprResult, code, _) <- compileExpr objExpr
-  let (EVar _ (LVar _ objIdent)) = objExpr
-  (ctype, var) <- getVar objIdent
+  -- let (EVar _ (LVar _ objIdent)) = objExpr
+  (ctype, var)          <- getVar objIdent
   let (CClass (Ident name) fields) = ctype
   state <- get
   let (ctype, fieldNum) = getFieldNum fields fieldIdent
@@ -353,17 +386,7 @@ compileExpr (EVar pos (LSField p2 objExpr fieldIdent)) = do
           ++ "* "
           ++ show reg
           ++ "\n"
-        -- r0 = load %list, %list* %var0
-        -- show reg
-          -- ++ " = extractvalue  "
-          -- ++ "%"
-          -- ++ name
-          -- ++ " "
-          -- ++ show var
-          -- ++ ","
-          -- ++ show fieldNum
-          -- ++ " \n"
-        -- show reg ++ " = " ++ show objIdent ++ "." ++ show fieldNum ++ "\n"
+
   return
     ( RegV reg2
     , "\n;--- Get "
@@ -377,6 +400,70 @@ compileExpr (EVar pos (LSField p2 objExpr fieldIdent)) = do
     ++ ";--- End of get field ---\n\n"
     , ctype
     )--TODO
+compileExpr (EVar pos (LSField p2 obj fieldIdent)) = do --TODO
+  (result1, code1, type1) <- compileExpr obj
+  let (CClass i f) = type1
+  ctype <- getClass i
+  let (CClass (Ident name) fields) = ctype
+
+  -- (ctype, fields) <- getProc i
+  -- let objExpr = EVar pos (LVar pos i)
+  -- (exprResult, code, _) <- compileExpr objExpr
+  -- let (EVar _ (LVar _ objIdent)) = objExpr
+  -- (ctype, var)          <- getVar objIdent
+  -- let (CClass (Ident name) fields) = ctype
+
+  state <- get
+  let (ctype, fieldNum) = getFieldNum fields fieldIdent
+
+  reg <- useNewReg
+  let fieldCode =
+        show reg
+          ++ " = getelementptr %"
+          ++ name
+          ++ ", %"
+          ++ name
+          ++ "* "
+          ++ show result1
+          ++ ", i32 0, i32 "
+          ++ show fieldNum
+          ++ "\n"
+
+  reg2 <- useNewReg
+  let accesCode =
+        show reg2
+          ++ " = load "
+          ++ show ctype
+          ++ ", "
+          ++ show ctype
+          ++ "* "
+          ++ show reg
+          ++ "\n"
+
+  return
+    ( RegV reg2
+    , "\n;--- Get "
+    ++ name
+    ++ "."
+    ++ identString fieldIdent
+    ++ "---\n"
+    ++ code1
+    ++ fieldCode
+    ++ accesCode
+    ++ ";--- End of get field ---\n\n"
+    , ctype
+    )--TODO
+  -- return
+  --   ( IntV 0
+  --   , "\n\n ------- KOMPILACJA WYRAZENIA STRUCTOWEGO ------ \n\n "
+  --   ++ show result1
+  --   ++ " \n"
+  --   ++  code1
+  --   ++ showCC ctype 
+  --   ++ "\n\n"
+  --   ++ "\n\n ------- KONIEC KOMPILACJA WYRAZENIA STRUCTOWEGO ------ \n\n "
+  --   , CInt
+  --   )
 compileExpr (EApp pos (Ident name) exprs) = do
   (argStr , compileStr) <- compileArgsExpr exprs
   (retType, argsTypes ) <- getProc $ Ident name
@@ -424,6 +511,33 @@ compileExpr (Not _ expr  ) = do
         , CBool
         )
     other -> return (other, code, CBool)
+
+initStructFields :: Ident -> [(CType, Ident)] -> Compl String
+initStructFields objIdent []               = return ""
+initStructFields objIdent (field : fields) = do
+  results <- initStructFields objIdent fields
+  let (ctype, fieldIdent) = field
+  result <- initStructField ctype objIdent fieldIdent
+  return $ result ++ results
+  -- let ep = (LSField pos (EVar pos (LVar pos (Ident (show r1)))) (Ident "elem"))
+  -- initCode2 <- compileStmt (Ass pos ep (ELitInt pos 0))
+
+initStructField :: CType -> Ident -> Ident -> Compl String
+initStructField ctype objIdent fieldIdent = do
+  let pos = BNFC'NoPosition
+  let lv = LSField pos (EVar pos (LVar pos objIdent)) fieldIdent
+  case ctype of
+    CInt -> do
+      compileStmt (Ass pos lv (ELitInt pos 0))
+    CBool -> do
+      compileStmt (Ass pos lv (ELitInt pos 0))
+    CClass classI _ -> do
+      compileStmt (Ass pos lv (ENull pos classI))
+    CStr -> do
+      compileStmt (Ass pos lv (EString pos ""))
+    CVoid -> do
+      return ""
+    CFun _ _ -> return ""
 
 {- compile arguments of EApp
     Params:
