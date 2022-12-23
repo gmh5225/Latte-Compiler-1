@@ -4,7 +4,6 @@ import           Control.Monad.Except
 import           Control.Monad.State
 import           Data.Map                      as Map
 import           Latte.Abs
-import           StaticAnalysis                 ( printError )
 import           Types
 
 type Error = String

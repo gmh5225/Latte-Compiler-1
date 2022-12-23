@@ -15,6 +15,7 @@ import           Latte.Abs
 import           Prelude
 import           Text.Parsec.Token              ( GenLanguageDef(identLetter) )
 import           Text.Read.Lex                  ( expect )
+import           Utils
 
 --------------------------------------------
 type Pos = BNFC'Position
@@ -85,6 +86,7 @@ runStaticAnallysis program = do
 checkProgram :: Program -> Compl Val
 checkProgram (Program pos topDefs) = do
   _      <- addDefs topDefs
+  _      <- addDecls topDefs
   result <- checkDefs topDefs
   env    <- get
   case Map.lookup (Ident "main") env of
@@ -103,13 +105,14 @@ addDefs (def : defs) = do
   results <- addDefs defs
   return ""
 
+
 addDef :: TopDef -> Compl Val
 addDef (FnDef pos retType ident args block) = do
   env <- get
   let (Ident varName) = ident
   case Map.lookup ident env of
     (Just (storedType, modif)) ->
-      printError pos $ "Name" ++ varName ++ " is already taken."
+      printError pos $ "Name " ++ varName ++ " is already taken."
     Nothing -> do
       put $ Map.insert
         ident
@@ -121,14 +124,60 @@ addDef (SDef pos ident items) = do
   let (Ident varName) = ident
   case Map.lookup ident env of
     (Just (storedType, modif)) ->
-      printError pos $ "Name" ++ varName ++ " is already taken."
+      printError pos $ "Name " ++ varName ++ " is already taken."
     Nothing -> do
-      put $ Map.insert ident (CClass ident (itemsToFields items), False) env
+      put $ Map.insert ident (CClass ident [], False) env
+      return ""
+
+
+
+addDecls :: [TopDef] -> Compl Val
+addDecls []           = return ""
+addDecls (def : defs) = do
+  result  <- addDecl def
+  results <- addDecls defs
+  return ""
+
+addDecl :: TopDef -> Compl Val
+addDecl (FnDef pos retType ident args block) = do
+  env <- get
+  let (Ident varName) = ident
+  -- case Map.lookup ident env of
+  --   (Just (storedType, modif)) ->
+  --     printError pos $ "Name" ++ varName ++ " is already taken."
+  --   Nothing -> do
+  put $ Map.insert
+    ident
+    (CFun (getCType retType) (Prelude.map getArgType args), False)
+    env
+  return ""
+addDecl (SDef pos ident items) = do
+  env <- get
+  let (Ident varName) = ident
+  
+  -- 
+      --TODO sprawdz czy wsyzstkie te itemy maja ok typy
+  checkItems items
+  put $ Map.insert ident (CClass ident (itemsToFields items), False) env
       -- put $ Map.insert
       --   ident
       --   (CClass ident ldpals, False)
       --   env
-      return ""
+  return ""
+
+checkItems :: [StructItem] -> Compl String
+checkItems []                        = return ""
+checkItems ((SItem pos t i) : items) = do
+  assertTypeExist pos (getCType t)
+  checkItems items
+  
+assertTypeExist :: Pos -> CType -> Compl String
+assertTypeExist pos (CClass ident fields) = do
+  env <- get
+  case Map.lookup ident env of
+    Just sth -> return ""
+    Nothing  -> printError pos $ (identString ident) ++ " is not defined"
+assertTypeExist _ _ = return ""
 
 -- TODO: sprawdzanie czy nie powtarzaja sie wewnatrz sturcta identy
 itemsToFields :: [StructItem] -> [(CType, Ident)]
@@ -285,7 +334,7 @@ getExprType (EVar pos (LSField p2 expr ident)) = do
 
   e <- get
   -- printError pos $ show e
-  let (Just ((CClass classIdent fields), modif)) = Map.lookup i e
+  let (Just (CClass classIdent fields, modif)) = Map.lookup i e
 
   -- printError pos $ show fields --tu musimy miec odpowiednie fieldsy (zawierajace co trzba)
 
@@ -315,8 +364,11 @@ getExprType (ENull   p ident) = return $ CClass ident [] -- TODO
 assertExprType :: Expr -> CType -> Compl Val
 assertExprType (EVar pos (LVar p2 ident)) exprType =
   assertVarType pos ident exprType
-assertExprType (EVar    pos (LSField p2 expr ident)) exprType = return "" --TODO
-assertExprType (ELitInt pos num                    ) CInt     = do
+assertExprType (EVar pos (LSField p2 expr ident)) exprType = do
+  -- ctype <- getExprType (EVar pos (LSField p2 expr ident))
+  -- printError pos $ show ctype
+  return "" --TODO
+assertExprType (ELitInt pos num) CInt = do
   checkIfIntOverflow num pos
   return ""
 assertExprType (ELitTrue  pos) CBool = return ""
@@ -334,17 +386,24 @@ assertExprType (ERel pos e1 op e2) CBool = do
   case t1 of
     (CClass i1 _) -> do
       let (CClass i2 _) = t2
-      if i1 == i2 then do 
-        return ""
-      else printError (hasPosition op) $ "Cannot compare " ++ show i1 ++  " with " ++ show i2
+      if i1 == i2
+        then do
+          return ""
+        else
+          printError (hasPosition op)
+          $  "Cannot compare "
+          ++ show i1
+          ++ " with "
+          ++ show i2
     _ -> do
       if t1 == t2
         then do
           case t1 of
-            CStr        -> printError (hasPosition op) "Cannot compare Strings"
-            CVoid       -> printError (hasPosition op) "Cannot compare Voids"
-            CFun ct cts -> printError (hasPosition op) "Cannot compare Functions"
-            _           -> return ""
+            CStr  -> printError (hasPosition op) "Cannot compare Strings"
+            CVoid -> printError (hasPosition op) "Cannot compare Voids"
+            CFun ct cts ->
+              printError (hasPosition op) "Cannot compare Functions"
+            _ -> return ""
         else
           printError (hasPosition op)
           $  "Cannot compare "
