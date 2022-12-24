@@ -1,0 +1,8 @@
+class Person {
+  NonExistingClass obj;
+}
+
+
+int main() {
+    return 0;
+}

@@ -110,6 +110,7 @@ addDef (FnDef pos retType ident args block) = do
     (Just (storedType, modif)) ->
       printError pos $ "Name " ++ varName ++ " is already taken."
     Nothing -> do
+      assertArgType args
       put $ Map.insert
         ident
         (CFun (getCType retType) (Prelude.map getArgType args), False)
@@ -136,6 +137,7 @@ addDecl :: TopDef -> Compl Val
 addDecl (FnDef pos retType ident args block) = do
   env <- get
   let (Ident varName) = ident
+  assertArgType args
   put $ Map.insert
     ident
     (CFun (getCType retType) (Prelude.map getArgType args), False)
@@ -182,6 +184,16 @@ assertTypeExist _ _ = return ""
 itemsToFields :: [StructItem] -> [(CType, Ident)]
 itemsToFields []                        = []
 itemsToFields ((SItem pos t i) : items) = (getCType t, i) : itemsToFields items
+
+{- Check if arguments' types
+    Params:
+      arguments
+-}
+assertArgType :: [Arg] -> Compl String
+assertArgType [] = return ""
+assertArgType ((Arg _ (Void p) (Ident name)) : args) =
+  printError p $ "Argument " ++ name ++ " cannot be of type void"
+assertArgType (Arg{} : args) = assertArgType args
 
 getArgType :: Arg -> CType
 getArgType (Arg pos argType ident) = getCType argType
@@ -306,7 +318,7 @@ checkStmt retType (Ass pos (LSField p2 expr ident) valExpr) = do
   e <- get
   let (Just (CClass classIdent fields, modif)) = Map.lookup i e
   fieldType <- assertField pos fields ident
-  exprType <- getExprType valExpr
+  exprType  <- getExprType valExpr
   assertExprType valExpr fieldType
 checkStmt retType (Incr pos ident) = assertVarType pos ident CInt
 checkStmt retType (Decr pos ident) = assertVarType pos ident CInt
@@ -374,9 +386,10 @@ assertExprType (EVar pos (LSField p2 expr ident)) exprType = do
   e <- get
   let (Just (CClass classIdent fields, modif)) = Map.lookup i e
   let ctype = getField fields ident
-  if ctype /= exprType then 
-    do printError pos "Error type"
-  else return ""
+  if ctype /= exprType
+    then do
+      printError pos "Error type"
+    else return ""
 assertExprType (ELitInt pos num) CInt = do
   checkIfIntOverflow num pos
   return ""

@@ -1,0 +1,8 @@
+class List {
+}
+
+int main() {
+  List l = new List;
+  l.num = 0;
+  return 0;
+}
